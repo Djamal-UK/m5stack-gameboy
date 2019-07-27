@@ -33,7 +33,7 @@ static int window_x, window_y;
 static byte bgpalette[] = {3, 2, 1, 0};
 static byte sprpalette1[] = {0, 1, 2, 3};
 static byte sprpalette2[] = {0, 1, 2, 3};
-static unsigned long colours[4] = {0xFFFFFF, 0xC0C0C0, 0x808080, 0x000000};
+//static unsigned long colours[4] = {0xFFFFFF, 0xC0C0C0, 0x808080, 0x000000};
 
 struct sprite {
 	int y, x, tile, flags;
@@ -158,6 +158,7 @@ static void sort_sprites(struct sprite *s, int n)
 
 void drawColorIndexToFrameBuffer(int x, int y, byte idx, byte *b) {
   int offset = x + y * 160;
+  b[offset >> 2] &= ~(0x3 << ((offset & 3) << 1));
   b[offset >> 2] |= (idx << ((offset & 3) << 1));
 }
 
@@ -181,7 +182,7 @@ static void draw_bg_and_window(byte *b, int line)
 			if(!bg_enabled)
 			{
 				//b[line*640 + x] = 0;
-        drawColorIndexToFrameBuffer(x,line,0,b);
+				drawColorIndexToFrameBuffer(x,line,0,b);
 				return;
 			}
 			xm = (x + scroll_x)%256;
@@ -208,7 +209,7 @@ static void draw_bg_and_window(byte *b, int line)
 		mask = 128>>(xm%8);
 		colour = (!!(b2&mask)<<1) | !!(b1&mask);
 		//b[line*640 + x] = colours[bgpalette[colour]];
-	  drawColorIndexToFrameBuffer(x,line,bgpalette[colour],b);
+		drawColorIndexToFrameBuffer(x,line,bgpalette[colour],b);
 	}
 }
 
@@ -253,12 +254,14 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s)
 			/* Sprite is behind BG, only render over palette entry 0 */
 			if(s[i].flags & PRIO)
 			{
-				unsigned int temp = b[line*640+(x + s[i].x)];
-				if(temp != colours[bgpalette[0]])
+				//unsigned int temp = b[line*640+(x + s[i].x)];
+				int offset = (x + s[i].x) + line * 160;
+				byte temp = (b[offset >> 2] >> ((offset & 3) << 1)) & 3;
+				if(temp != bgpalette[0])
 					continue;
 			}
 			//b[line*640+(x + s[i].x)] = colours[pal[colour]];
-		  drawColorIndexToFrameBuffer(x + s[i].x,line,pal[colour],b);
+			drawColorIndexToFrameBuffer(x + s[i].x,line,pal[colour],b);
 		}
 	}
 }
@@ -301,7 +304,7 @@ static void render_line(int line)
 
 static void draw_stuff(void)
 {
-  byte *b = sdl_get_framebuffer();
+	byte *b = sdl_get_framebuffer();
 	int y, tx, ty;
 
 	for(ty = 0; ty < 24; ty++)
@@ -366,4 +369,3 @@ int lcd_cycle(void)
 	prev_line = lcd_line;
 	return 1;
 }
-
