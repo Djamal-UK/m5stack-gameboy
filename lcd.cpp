@@ -78,7 +78,6 @@ void lcd_write_spr_palette2(unsigned char n)
 
 void lcd_write_scroll_x(unsigned char n)
 {
-//	printf("x scroll changed to %02x\n", n);
 	scroll_x = n;
 }
 
@@ -99,8 +98,6 @@ void lcd_write_stat(unsigned char c)
 
 void lcd_write_control(unsigned char c)
 {
-//	printf("LCDC set to %02x\n", c);
-//	cpu_print_debug();
 	bg_enabled            = !!(c & 0x01);
 	sprites_enabled       = !!(c & 0x02);
 	sprite_size           = !!(c & 0x04);
@@ -109,6 +106,13 @@ void lcd_write_control(unsigned char c)
 	window_enabled        = !!(c & 0x20);
 	window_tilemap_select = !!(c & 0x40);
 	lcd_enabled           = !!(c & 0x80);
+	
+	if(!lcd_enabled)
+	{
+		//Serial.println("Screen cleared.");
+		sdl_clear_framebuffer(0x00);
+		sdl_frame();
+	}
 }
 
 void lcd_set_ly_compare(unsigned char c)
@@ -332,11 +336,11 @@ int lcd_cycle(void)
 	int this_frame, subframe_cycles;
 	static int prev_line;
 
-	if(sdl_update())
-		return 0;
-
 	this_frame = cycles % (70224/4);
 	lcd_line = this_frame / (456/4);
+	
+	//if(!lcd_enabled)
+		//return 1;
 
 	if(this_frame < 204/4)
 		lcd_mode = 2;
