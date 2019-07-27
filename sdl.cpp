@@ -1,242 +1,119 @@
+//#include <M5Stack.h>
 
+#include "SPI.h"
+#include "spi_lcd.h"
+#include "sdl.h"
 
-/*
-#include <SDL/SDL.h>
-#include <sys/time.h>
-static SDL_Surface *screen;
-static unsigned int frames;
-static struct timeval tv1, tv2;
+#define JOYPAD_INPUT 5
+#define JOYPAD_ADDR  0x88
 
+#define BIT(x, b) (((x)>>(b)) & 0x01)
 
+// void backlighting(bool state) {
+	// if (state) {
+		// M5.Lcd.setBrightness(0xF0);
+	// } else {
+		// M5.Lcd.setBrightness(0x20);
+	// }
+// }
 
-static int button_start, button_select, button_a, button_b, button_down, button_up, button_left, button_right;
+#define GAMEBOY_WIDTH 160
+#define GAMEBOY_HEIGHT 144
+byte pixels[GAMEBOY_HEIGHT * GAMEBOY_WIDTH / 4];
+
+static uint8_t btn_directions, btn_faces;
+
+unsigned int palette[] = {0x183442, 0x525F73, 0xADD794, 0xEFFFDE};
+
+byte getColorIndexFromFrameBuffer(int x, int y)
+{
+	int offset = x + y * 160;
+	return (pixels[offset >> 2] >> ((offset & 3) << 1)) & 3;
+}
+
+void SDL_Flip(byte *screen)
+{
+	// Too slow
+	//int i,j;
+	//M5.Lcd.fillScreen(BLACK);
+	/*for(i = 0;i<GAMEBOY_HEIGHT;i++){
+		for(j = 0;j<GAMEBOY_WIDTH;j++){
+			M5.Lcd.drawPixel(j, i, palette[getColorIndexFromFrameBuffer(j, i)]);
+		}
+	}*/
+	ili9341_write_frame(0, 0, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, screen);
+}
 
 void sdl_init(void)
 {
-	SDL_Init(SDL_INIT_VIDEO);
-	screen = SDL_SetVideoMode(640, 480, 32, SDL_HWSURFACE | SDL_DOUBLEBUF);
+	// LCDEnable, SDEnable, SerialEnable, I2CEnable
+	//M5.begin(false, true, true, true);
+	//M5.Speaker.end();
+	Serial.begin(115200);
+	Wire.begin(21, 22);
+	pinMode(JOYPAD_INPUT, INPUT_PULLUP);
+	const unsigned int pal[] = {0xEFFFDE, 0xADD794, 0x525F73, 0x183442}; // Default greenscale palette
+	sdl_set_palette(pal);
+	ili9341_init();
+	//backlighting(true);
 }
 
 int sdl_update(void)
 {
-	SDL_Event e;
-
-	while(SDL_PollEvent(&e))
-	{
-		if(e.type == SDL_QUIT)
-			return 1;
-
-		if(e.type == SDL_KEYDOWN)
-		{
-			switch(e.key.keysym.sym)
-			{
-				case SDLK_a:
-					button_a = 1;
-				break;
-				case SDLK_s:
-					button_b = 1;
-				break;
-				case SDLK_d:
-					button_select = 1;
-				break;
-				case SDLK_f:
-					button_start = 1;
-				break;
-				case SDLK_LEFT:
-					button_left = 1;
-				break;
-				case SDLK_RIGHT:
-					button_right = 1;
-				break;
-				case SDLK_DOWN:
-					button_down = 1;
-				break;
-				case SDLK_UP:
-					button_up = 1;
-				break;
-			}
+	if(digitalRead(JOYPAD_INPUT) == LOW) {
+		Wire.requestFrom(JOYPAD_ADDR, 1);
+		while(Wire.available()) {
+			uint8_t btns = ~(Wire.read());
+			btn_faces = (btns >> 4);
+			btn_directions = (BIT(btns, 1) << 3) | (BIT(btns, 0) << 2) | (BIT(btns, 2) << 1) | (BIT(btns, 3));
+			//Serial.println(btn_faces);
+			//Serial.println(btn_directions);
 		}
-
-		if(e.type == SDL_KEYUP)
-		{
-			switch(e.key.keysym.sym)
-			{
-				case SDLK_a:
-					button_a = 0;
-				break;
-				case SDLK_s:
-					button_b = 0;
-				break;
-				case SDLK_d:
-					button_select = 0;
-				break;
-				case SDLK_f:
-					button_start = 0;
-				break;
-				case SDLK_LEFT:
-					button_left = 0;
-				break;
-				case SDLK_RIGHT:
-					button_right = 0;
-				break;
-				case SDLK_DOWN:
-					button_down = 0;
-				break;
-				case SDLK_UP:
-					button_up = 0;
-				break;
-			}
-		}
-
 	}
 	return 0;
 }
 
 unsigned int sdl_get_buttons(void)
 {
-	return (button_start*8) | (button_select*4) | (button_b*2) | button_a;
+	return btn_faces;
 }
 
 unsigned int sdl_get_directions(void)
 {
-	return (button_down*8) | (button_up*4) | (button_left*2) | button_right;
-}
-
-unsigned int *sdl_get_framebuffer(void)
-{
-	return screen->pixels;
-}
-
-void sdl_frame(void)
-{
-	if(frames == 0)
-  		gettimeofday(&tv1, NULL);
-	
-	frames++;
-	if(frames % 1000 == 0)
-	{
-		gettimeofday(&tv2, NULL);
-		printf("Frames %d, seconds: %d, fps: %d\n", frames, tv2.tv_sec - tv1.tv_sec, frames/(tv2.tv_sec - tv1.tv_sec));
-	}
-	SDL_Flip(screen);
-}
-
-void sdl_quit()
-{
-	SDL_Quit();
-}
-*/
-#include "SPI.h"
-#include "Adafruit_GFX.h"
-#include "Adafruit_ILI9341.h"
-
-#define _cs   22   // 3 goes to TFT CS
-#define _dc   21   // 4 goes to TFT DC
-#define _mosi 23  // 5 goes to TFT MOSI
-#define _sclk 19  // 6 goes to TFT SCK/CLK
-#define _rst  18  // ESP RST to TFT RESET
-#define _miso 25    // Not connected
-#define _led   5
-//       3.3V     // Goes to TFT LED  
-//       5v       // Goes to TFT Vcc
-//       Gnd      // Goes to TFT Gnd        
-
-// Use hardware SPI (on ESP D4 and D8 as above)
-//Adafruit_ILI9341 tft = Adafruit_ILI9341(_CS, _DC);
-// If using the breakout, change pins as desired
-Adafruit_ILI9341 tft = Adafruit_ILI9341(_cs, _dc, _mosi, _sclk, _rst, _miso);
-
-void backlighting(bool state) {
-    if (!state) {
-        digitalWrite(_led, LOW);
-    }
-    else {
-        digitalWrite(_led, HIGH);
-    }
-}
-
-#define GAMEBOY_HEIGHT 160
-#define GAMEBOY_WIDTH 144
-byte pixels[GAMEBOY_HEIGHT * GAMEBOY_WIDTH / 4];
-
-static int button_start, button_select, button_a, button_b, button_down, button_up, button_left, button_right;
-
-byte getColorIndexFromFrameBuffer(int x, int y) {
-  int offset = x + y * 160;
-  return (pixels[offset >> 2] >> ((offset & 3) << 1)) & 3;
-}
-const int color[] = {0x000000, 0x555555, 0xAAAAAA, 0xFFFFFF};
-
-void SDL_Flip(byte *screen){
-  //tft.fillScreen(ILI9341_BLACK);
-  int i,j;
-  for(i = 0;i<GAMEBOY_WIDTH;i++){
-    for(j = 0;j<GAMEBOY_HEIGHT;j++){
-        tft.drawPixel(j, i, color[getColorIndexFromFrameBuffer(j, i)]);
-      }
-    }
-    //memset(pixels,0,GAMEBOY_HEIGHT * GAMEBOY_WIDTH / 4*sizeof(byte));
-}
-
-void sdl_init(void)
-{
-  tft.begin();
-  pinMode(_led, OUTPUT);
-  backlighting(true);
-  
-  // read diagnostics (optional but can help debug problems)
-  uint8_t x = tft.readcommand8(ILI9341_RDMODE);
-  Serial.print("Display Power Mode: 0x"); Serial.println(x, HEX);
-  x = tft.readcommand8(ILI9341_RDMADCTL);
-  Serial.print("MADCTL Mode: 0x"); Serial.println(x, HEX);
-  x = tft.readcommand8(ILI9341_RDPIXFMT);
-  Serial.print("Pixel Format: 0x"); Serial.println(x, HEX);
-  x = tft.readcommand8(ILI9341_RDIMGFMT);
-  Serial.print("Image Format: 0x"); Serial.println(x, HEX);
-  x = tft.readcommand8(ILI9341_RDSELFDIAG);
-  Serial.print("Self Diagnostic: 0x"); Serial.println(x, HEX); 
-  tft.fillScreen(ILI9341_RED);
-
-  gpio_pad_select_gpio(GPIO_NUM_14);
-  gpio_set_direction(GPIO_NUM_14, GPIO_MODE_INPUT);
-
-  gpio_pad_select_gpio(GPIO_NUM_27);
-  gpio_set_direction(GPIO_NUM_27, GPIO_MODE_INPUT);
-}
-int sdl_update(void){
-	//tft.fillScreen(ILI9341_RED);
-    button_start = !gpio_get_level(GPIO_NUM_14);
-    button_right = !gpio_get_level(GPIO_NUM_27);
-	return 0;
-}
-unsigned int sdl_get_buttons(void)
-{
-	return (button_start*8) | (button_select*4) | (button_b*2) | button_a;
-}
-
-unsigned int sdl_get_directions(void)
-{
-	return (button_down*8) | (button_up*4) | (button_left*2) | button_right;
+	return btn_directions;
 }
 
 byte* sdl_get_framebuffer(void)
 {
 	return pixels;
 }
-void sdl_frame(void)
+
+void sdl_clear_framebuffer(byte col)
 {
-  /* 
-	if(frames == 0)
-		gettimeofday(&tv1, NULL);
-	
-	frames++;
-	if(frames % 1000 == 0)
-	{
-		gettimeofday(&tv2, NULL);
-		printf("Frames %d, seconds: %d, fps: %d\n", frames, tv2.tv_sec - tv1.tv_sec, frames/(tv2.tv_sec - tv1.tv_sec));
-	}
- */
-	SDL_Flip(pixels);
+	memset(pixels, col, sizeof(pixels));
 }
 
+void sdl_clear_screen(byte col)
+{
+	//M5.Lcd.fillScreen(palette[col]);
+	//M5.Lcd.clear();
+}
 
+unsigned int* sdl_get_palette(void)
+{
+	return palette;
+}
+
+void sdl_set_palette(const unsigned int* col)
+{
+	// RGB888 -> RGB565
+	for (int i = 0; i < 4; ++i) {
+		unsigned int c = ((col[i]&0xFF)>>3)+((((col[i]>>8)&0xFF)>>2)<<5)+((((col[i]>>16)&0xFF)>>3)<<11);
+		palette[i] = c;
+	}
+}
+
+void sdl_frame(void)
+{
+	SDL_Flip(pixels);
+}

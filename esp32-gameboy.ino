@@ -10,24 +10,21 @@
 
 void setup() {
   // put your setup code here, to run once:
-  int r = rom_init(gb_rom);
-
   sdl_init();
 
-  printf("ROM OK!\n");
-
-  mem_init();
-  printf("Mem OK!\n");
-
+  rom_init(gb_rom);
+  Serial.println("ROM OK!");
+  memm_init();
+  Serial.println("Mem OK!");
   cpu_init();
-  printf("CPU OK!\n");
+  Serial.println("CPU OK!");
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-    cpu_cycle();
-
-    lcd_cycle();
-
-    timer_cycle();
+  sdl_update();
+  
+  cpu_cycle();
+  lcd_cycle();
+  timer_cycle();
 }

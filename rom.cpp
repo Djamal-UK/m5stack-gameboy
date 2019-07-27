@@ -26,9 +26,6 @@ static char *carts[] = {
 	[0x11] = "MBC3",
 	[0x12] = "MBC3+RAM",
 	[0x13] = "MBC3+RAM+BATTERY",
-	[0x15] = "MBC4",
-	[0x16] = "MBC4+RAM",
-	[0x17] = "MBC4+RAM+BATTERY",
 	[0x19] = "MBC5",
 	[0x1A] = "MBC5+RAM",
 	[0x1B] = "MBC5+RAM+BATTERY",
@@ -141,32 +138,27 @@ int rom_init(const unsigned char *rombytes)
 		case 0x08:
 		case 0x09:
 			mapper = NROM;
-		break;
+			break;
 		case 0x01:
 		case 0x02:
 		case 0x03:
 			mapper = MBC1;
-		break;
+			break;
 		case 0x05:
 		case 0x06:
 			mapper = MBC2;
-		break;
+			break;
 		case 0x0B:
 		case 0x0C:
 			mapper = MMM01;
-		break;
+			break;
 		case 0x0F:
 		case 0x10:
 		case 0x11:
 		case 0x12:
 		case 0x13:
 			mapper = MBC3;
-		break;
-		case 0x15:
-		case 0x16:
-		case 0x17:
-			mapper = MBC4;
-		break;
+			break;
 		case 0x19:
 		case 0x1A:
 		case 0x1B:
@@ -174,7 +166,7 @@ int rom_init(const unsigned char *rombytes)
 		case 0x1D:
 		case 0x1E:
 			mapper = MBC5;
-		break;
+			break;
 	}
 
 	return 1;

@@ -11,25 +11,8 @@ You will need:
 looking for '2.2 inch SPI 320 240 ILI9341' on eBay or other shopping sites.
 * A GPIO button
 
-# How do I hoop up my board?
-
-**LCD:**
-
-    =====  =======================
-    Pin    GPIO
-    =====  =======================
-    MISO   25
-    MOSI   23
-    CLK    19
-    CS     22
-    DC     21
-    RST    18
-    BCKL   5
-    =====  =======================
-
-(BCKL = backlight enable)
-
-(Make sure to also wire up the backlight and power pins.)
+This fork is being developed with the M5Stack device in mind. You can find more info about it here: https://m5stack.com/
+M5Stack Arduino API and game pocket face are required.
 
 # How do I program the chip?
 
