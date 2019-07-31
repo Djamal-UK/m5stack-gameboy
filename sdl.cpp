@@ -4,8 +4,9 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 
-#include "SPI.h"
+//#include "SPI.h"
 #include "spi_lcd.h"
+#include "i2c_keyboard.h"
 #include "sdl.h"
 
 #define JOYPAD_INPUT 5
@@ -51,6 +52,7 @@ void sdl_init(void)
 	//dacWrite(SPEAKER_PIN, 0);
 	ledcDetachPin(SPEAKER_PIN);
 	pinMode(JOYPAD_INPUT, INPUT_PULLUP);
+	i2c_keyboard_master_init();
 	pixels = (byte*)calloc(GAMEBOY_HEIGHT, GAMEBOY_WIDTH);
 	const unsigned int pal[] = {0xEFFFDE, 0xADD794, 0x525F73, 0x183442}; // Default greenscale palette
 	sdl_set_palette(pal);
@@ -62,14 +64,9 @@ void sdl_init(void)
 int sdl_update(void)
 {
 	if(digitalRead(JOYPAD_INPUT) == LOW) {
-		Wire.requestFrom(JOYPAD_ADDR, 1);
-		while(Wire.available()) {
-			uint8_t btns = ~(Wire.read());
-			btn_faces = (btns >> 4);
-			btn_directions = (BIT(btns, 1) << 3) | (BIT(btns, 0) << 2) | (BIT(btns, 2) << 1) | (BIT(btns, 3));
-			//Serial.println(btn_faces);
-			//Serial.println(btn_directions);
-		}
+		uint8_t btns = ~(i2c_keyboard_read());
+		btn_faces = (btns >> 4);
+		btn_directions = (BIT(btns, 1) << 3) | (BIT(btns, 0) << 2) | (BIT(btns, 2) << 1) | (BIT(btns, 3));
 	}
 	return 0;
 }
