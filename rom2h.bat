@@ -1,2 +1,2 @@
-bin2h -cz gb_rom<gb.gb > gbrom.h
+bin2h -cz gb_rom<"%1" > gbrom.h
 pause
