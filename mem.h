@@ -14,6 +14,7 @@ void mem_write_byte(unsigned short, unsigned char);
 void mem_write_word(unsigned short, unsigned short);
 void mem_bank_switch(unsigned int);
 unsigned char mem_get_raw(unsigned short);
+unsigned char* mem_get_bytes(void);
 #ifdef __cplusplus
 
   }

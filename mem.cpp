@@ -10,21 +10,32 @@
 #include "cpu.h"
 
 
-static unsigned char *mem;
+static unsigned char *mem = nullptr;
 static int DMA_pending = 0;
 static int joypad_select_buttons, joypad_select_directions;
+static const unsigned char *rom = nullptr;
+static const unsigned char *rombank = nullptr;
+static unsigned int cur_bank = 1;
 
 void mem_bank_switch(unsigned int n)
-{
-	const unsigned char *b = rom_getbytes();
-
-	memcpy(&mem[0x4000], &b[n * 0x4000], 0x4000);
+{ 
+	rombank = &rom[n * 0x4000];
+	//memcpy(&mem[0x4000], &b[n * 0x4000], 0x4000);
+	//cur_bank = n;
 }
 
 /* LCD's access to VRAM */
 unsigned char mem_get_raw(unsigned short p)
 {
+	if(p >= 0x4000 && p < 0x8000)
+		return rombank[p - 0x4000];
+	
 	return mem[p];
+}
+
+unsigned char* mem_get_bytes()
+{
+	return mem;
 }
 
 unsigned char mem_get_byte(unsigned short i)
@@ -42,6 +53,9 @@ unsigned char mem_get_byte(unsigned short i)
 			return mem[0xFE00+elapsed];
 		}
 	}
+
+	if(i >= 0x4000 && i < 0x8000)
+		return rombank[i - 0x4000];
 
 	if(i < 0xFF00)
 		return mem[i];
@@ -101,6 +115,10 @@ unsigned short mem_get_word(unsigned short i)
 			return mem[0xFE00+elapsed];
 		}
 	}
+	
+	if(i >= 0x4000 && i < 0x8000)
+		return rombank[i - 0x4000] | (rombank[(i+1) - 0x4000]<<8);
+	
 	return mem[i] | (mem[i+1]<<8);
 }
 
@@ -200,12 +218,13 @@ void mem_write_word(unsigned short d, unsigned short i)
 
 void memm_init(void)
 {
-	const unsigned char *bytes = rom_getbytes();
+	rom = rom_getbytes();
 
 	mem = (unsigned char *)calloc(1, 0x10000);
 
-	memcpy(&mem[0x0000], &bytes[0x0000], 0x4000);
-	memcpy(&mem[0x4000], &bytes[0x4000], 0x4000);
+	memcpy(&mem[0x0000], &rom[0x0000], 0x4000);
+	memcpy(&mem[0x4000], &rom[0x4000], 0x4000);
+	mem_bank_switch(1);
 
 	mem[0xFF10] = 0x80;
 	mem[0xFF11] = 0xBF;
