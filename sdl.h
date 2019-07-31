@@ -10,6 +10,6 @@ void sdl_clear_framebuffer(byte col);
 void sdl_clear_screen(byte col);
 unsigned int sdl_get_buttons(void);
 unsigned int sdl_get_directions(void);
-unsigned int* sdl_get_palette(void);
+uint16_t* sdl_get_palette(void);
 void sdl_set_palette(const unsigned int* col);
 #endif
