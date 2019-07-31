@@ -1,8 +1,9 @@
 #ifndef LCD_H
 #define LCD_H
-int lcd_cycle(void);
+void lcd_cycle(void);
 int lcd_get_line(void);
 unsigned char lcd_get_stat();
+void lcd_thread_setup();
 void lcd_write_control(unsigned char);
 void lcd_write_stat(unsigned char);
 void lcd_write_scroll_x(unsigned char);
