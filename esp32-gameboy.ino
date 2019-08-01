@@ -15,6 +15,8 @@ void setup() {
 	memm_init();
 	cpu_init();
 
+	lcd_thread_setup();
+
 	while(true) {
 		cpu_cycle();
 		sdl_update();

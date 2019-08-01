@@ -7,6 +7,7 @@ void sdl_frame(void);
 void sdl_quit(void);
 byte* sdl_get_framebuffer(void);
 void sdl_clear_framebuffer(byte col);
+void sdl_render_framebuffer(void);
 void sdl_clear_screen(byte col);
 unsigned int sdl_get_buttons(void);
 unsigned int sdl_get_directions(void);

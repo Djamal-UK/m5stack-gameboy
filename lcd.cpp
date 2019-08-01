@@ -112,8 +112,8 @@ void lcd_write_control(unsigned char c)
 	
 	if(!lcd_enabled)
 	{
-		sdl_clear_framebuffer(0x00);
-		sdl_frame();
+		//sdl_clear_framebuffer(0x00);
+		//sdl_frame();
 	}
 }
 
@@ -280,42 +280,53 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s)
 	}
 }
 
-static void render_line(int line)
-{   
-	int i, c = 0;
-  
-	struct sprite s[10];
-	byte *b = sdl_get_framebuffer();
-	unsigned char* mem = mem_get_bytes();
-  
-	for(i = 0; i<40; i++)
-	{
-		int y, offs = i * 4;
-  
-		y = mem[0xFE00 + offs++] - 16;
-		if(line < y || line >= y + 8+(sprite_size*8))
-			continue;
-  
-		s[c].y     = y;
-		s[c].x     = mem[0xFE00 + offs++]-8;
-		s[c].tile  = mem[0xFE00 + offs++];
-		s[c].flags = mem[0xFE00 + offs++];
-		c++;
-  
-		if(c == 10)
-			break;
-	}
-  
-	if(c)
-		sort_sprites(s, c);
-  
-	/* Draw the background layer */
-	draw_bg_and_window(b, line);
-	
-	draw_sprites(b, line, c, s);
-}
+QueueHandle_t lcdqueue;
 
-//QueueHandle_t lcdqueue;
+static void render_line(void *arg)
+{
+	int line = 0;
+	while(true) {
+		if (!xQueueReceive(lcdqueue, &line, portMAX_DELAY))
+		continue;
+
+		if (line == 144) {
+			sdl_render_framebuffer();
+			continue;
+		}
+		
+		int i, c = 0;
+		
+		struct sprite s[10];
+		byte *b = sdl_get_framebuffer();
+		unsigned char* mem = mem_get_bytes();
+		
+		for(i = 0; i<40; i++)
+		{
+			int y, offs = i * 4;
+		
+			y = mem[0xFE00 + offs++] - 16;
+			if(line < y || line >= y + 8+(sprite_size*8))
+				continue;
+		
+			s[c].y     = y;
+			s[c].x     = mem[0xFE00 + offs++]-8;
+			s[c].tile  = mem[0xFE00 + offs++];
+			s[c].flags = mem[0xFE00 + offs++];
+			c++;
+		
+			if(c == 10)
+				break;
+		}
+		
+		if(c)
+			sort_sprites(s, c);
+		
+		/* Draw the background layer */
+		draw_bg_and_window(b, line);
+		
+		draw_sprites(b, line, c, s);
+	}
+}
 
 void lcd_cycle()
 {   
@@ -339,7 +350,8 @@ void lcd_cycle()
 		lcd_mode = 1;
 		
 	if(lcd_line != prev_line && lcd_line < 144)
-		render_line(lcd_line);
+		xQueueSend(lcdqueue, &lcd_line, 0);
+		//render_line(lcd_line);
   
 	if(ly_int && lcd_line == lcd_ly_compare)
 		interrupt(INTR_LCDSTAT);
@@ -347,8 +359,9 @@ void lcd_cycle()
 	if(prev_line == 143 && lcd_line == 144)
 	{
 		//draw_stuff();
+		xQueueSend(lcdqueue, &lcd_line, 0);
 		interrupt(INTR_VBLANK);
-		sdl_frame();
+		//sdl_frame();
 	}
 	prev_line = lcd_line;
 }
@@ -361,6 +374,6 @@ void lcd_cycle()
 
 void lcd_thread_setup()
 {
-  //lcdqueue = xQueueCreate(1, sizeof(int));
-  //xTaskCreatePinnedToCore(&lcd_cycle, "lcdCycle", 4096, NULL, 5, NULL, 0);
+	lcdqueue = xQueueCreate(144, sizeof(int));
+	xTaskCreatePinnedToCore(&render_line, "renderScanline", 4096, NULL, 5, NULL, 0);
 }

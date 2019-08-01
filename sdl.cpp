@@ -26,10 +26,9 @@ uint16_t palette[] = { 0xFFFF, 0xAAAA, 0x5555, 0x2222 };
 QueueHandle_t fbqueue;
 
 static void videoTask(void *arg) {
-	int x, y;
 	byte* fb = NULL;
-	x = (320 - GAMEBOY_WIDTH)  >> 1;
-	y = (240 - GAMEBOY_HEIGHT) >> 1;
+	int x = (320 - GAMEBOY_WIDTH)  >> 1;
+	int y = (240 - GAMEBOY_HEIGHT) >> 1;
 	while(true) {
 		xQueueReceive(fbqueue, &fb, portMAX_DELAY);
 		ili9341_write_frame(x, y, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, fb, true);
@@ -58,7 +57,7 @@ void sdl_init(void)
 	sdl_set_palette(pal);
 	ili9341_init();
 	fbqueue = xQueueCreate(1, sizeof(byte*));
-	xTaskCreatePinnedToCore(&videoTask, "videoTask", 2048, NULL, 5, NULL, 0);
+	//xTaskCreatePinnedToCore(&videoTask, "videoTask", 2048, NULL, 5, NULL, 1);
 }
 
 int sdl_update(void)
@@ -108,6 +107,13 @@ void sdl_set_palette(const unsigned int* col)
 	for (int i = 0; i < 4; ++i) {
 		palette[i] = ((col[i]&0xFF)>>3)+((((col[i]>>8)&0xFF)>>2)<<5)+((((col[i]>>16)&0xFF)>>3)<<11);
 	}
+}
+
+void sdl_render_framebuffer(void)
+{
+	int x = (320 - GAMEBOY_WIDTH)  >> 1;
+	int y = (240 - GAMEBOY_HEIGHT) >> 1;
+	ili9341_write_frame(x, y, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, pixels, true);
 }
 
 void sdl_frame(void)
