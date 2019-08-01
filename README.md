@@ -1,6 +1,6 @@
 # esp32-gameboy
 
-This is a port of https://github.com/zid/gameboy to the Espressif ESP32 chip. and this project based on Arduino,and the SPI LCD the low speed.
+This is a port of https://github.com/zid/gameboy to the Espressif ESP32 chip.
 
 # What do I need to use this?
 
@@ -12,14 +12,11 @@ looking for '2.2 inch SPI 320 240 ILI9341' on eBay or other shopping sites.
 * A GPIO button
 
 This fork is being developed with the M5Stack device in mind. You can find more info about it here: https://m5stack.com/
-M5Stack Arduino API and game pocket face are required.
+M5Stack Arduino API and M5Stack FACES are required.
 
 # How do I program the chip?
 
-rename GB ROM to gb.gb
-
-run rom2h.bat
-
-run gameboy.ino
-
-update!
+* Set up your Arduino IDE for the M5Stack (https://docs.m5stack.com/)
+* Drag and drop your rom to rom2h.bat
+* Run esp32-gameboy.ino
+* Compile the sketch and upload it to the board
