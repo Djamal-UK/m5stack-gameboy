@@ -13,6 +13,8 @@
 static int lcd_line;
 static int lcd_ly_compare;
 
+static QueueHandle_t lcdqueue;
+
 
 /* LCD STAT */
 static int ly_int;	/* LYC = LY coincidence interrupt enable */
@@ -112,7 +114,8 @@ void lcd_write_control(unsigned char c)
 	
 	if(!lcd_enabled)
 	{
-		//sdl_clear_framebuffer(0x00);
+		xQueueReset(lcdqueue);
+		sdl_clear_framebuffer(0x00);
 		//sdl_frame();
 	}
 }
@@ -210,9 +213,9 @@ static void draw_bg_and_window(byte *b, int line)
 		else
 			tile_addr = 0x9000 + ((signed char)tile_num)*16;
 
-		b1 = mem[tile_addr+(ym%8)*2];
-		b2 = mem[tile_addr+(ym%8)*2+1];
-		mask = 128>>(xm%8);
+		b1 = mem[tile_addr+(ym&7)*2];
+		b2 = mem[tile_addr+(ym&7)*2+1];
+		mask = 128>>(xm&7);
 		colour = (!!(b2&mask)<<1) | !!(b1&mask);
 		//b[line*640 + x] = colours[bgpalette[colour]];
 		//drawColorIndexToFrameBuffer(x,line,bgpalette[colour],b);
@@ -280,19 +283,20 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s)
 	}
 }
 
-QueueHandle_t lcdqueue;
-
 static void render_line(void *arg)
 {
 	int line = 0;
 	while(true) {
 		if (!xQueueReceive(lcdqueue, &line, portMAX_DELAY))
-		continue;
-
-		if (line == 144) {
-			sdl_render_framebuffer();
 			continue;
-		}
+
+		if (!lcd_enabled || lcd_mode==1)
+			continue;
+
+	//    if (line == 144) {
+	//      sdl_render_framebuffer();
+	//      continue;
+	//    }
 		
 		int i, c = 0;
 		
@@ -325,9 +329,14 @@ static void render_line(void *arg)
 		draw_bg_and_window(b, line);
 		
 		draw_sprites(b, line, c, s);
+
+		if (line == 143) {
+			sdl_render_framebuffer();
+		}
 	}
 }
 
+// TODO: proper lcd timing
 void lcd_cycle()
 {   
 	int cycles = cpu_get_cycles();
@@ -359,7 +368,7 @@ void lcd_cycle()
 	if(prev_line == 143 && lcd_line == 144)
 	{
 		//draw_stuff();
-		xQueueSend(lcdqueue, &lcd_line, 0);
+    //xQueueSend(lcdqueue, &lcd_line, 0);
 		interrupt(INTR_VBLANK);
 		//sdl_frame();
 	}
@@ -374,6 +383,6 @@ void lcd_cycle()
 
 void lcd_thread_setup()
 {
-	lcdqueue = xQueueCreate(144, sizeof(int));
+	lcdqueue = xQueueCreate(143, sizeof(int));
 	xTaskCreatePinnedToCore(&render_line, "renderScanline", 4096, NULL, 5, NULL, 0);
 }
