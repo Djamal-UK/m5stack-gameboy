@@ -9,22 +9,24 @@
 
 
 void setup() {
-  // put your setup code here, to run once:
-  sdl_init();
+	// put your setup code here, to run once:
+	sdl_init();
+	rom_init(gb_rom);
+	memm_init();
+	cpu_init();
 
-  rom_init(gb_rom);
-  Serial.println("ROM OK!");
-  memm_init();
-  Serial.println("Mem OK!");
-  cpu_init();
-  Serial.println("CPU OK!");
+	while(true) {
+		cpu_cycle();
+		sdl_update();
+		lcd_cycle();
+		timer_cycle();
+	}
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  sdl_update();
-  
-  cpu_cycle();
-  lcd_cycle();
-  timer_cycle();
+	// put your main code here, to run repeatedly:
+	cpu_cycle();
+	sdl_update();
+	lcd_cycle();
+	timer_cycle();
 }
