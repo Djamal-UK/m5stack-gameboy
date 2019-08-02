@@ -19,7 +19,7 @@ static unsigned int serial_masked = 1;
 static unsigned int joypad_masked = 1;
 
 /* Returns true if the cpu should be unhalted */
-int inline interrupt_flush(void)
+int interrupt_flush(void)
 {
 	/* Flush the highest priority interrupt and/or resume the cpu */
 	if(pending == 2)
@@ -42,27 +42,27 @@ int inline interrupt_flush(void)
 	/* Interrupts are enabled - Check if any need to fire */
 	if(vblank && !vblank_masked)
 	{
-		vblank = 0;
+		enabled = vblank = 0;
 		cpu_interrupt(0x40);
 	}
 	else if(lcdstat && !lcdstat_masked)
 	{
-		lcdstat = 0;
+		enabled = lcdstat = 0;
 		cpu_interrupt(0x48);
 	}
 	else if(timer && !timer_masked)
 	{
-		timer = 0;
+		enabled = timer = 0;
 		cpu_interrupt(0x50);
 	}
 	else if(serial && !serial_masked)
 	{
-		serial = 0;
+		enabled = serial = 0;
 		cpu_interrupt(0x58);
 	}
 	else if(joypad && !joypad_masked)
 	{
-		joypad = 0;
+		enabled = joypad = 0;
 		cpu_interrupt(0x60);
 	}
 

@@ -672,7 +672,7 @@ void cpu_interrupt(unsigned short vector)
 	c.SP -= 2;
 	mem_write_word(c.SP, c.PC);
 	c.PC = vector;
-	interrupt_disable();
+	//interrupt_disable();
 }
 
 unsigned int cpu_get_cycles(void)
@@ -704,18 +704,7 @@ int cpu_cycle(void)
 		halted = 0;
 	}
 
-
 	b = mem_get_byte(c.PC);
-
-#ifdef EBUG
-//	if(c.PC == 0x2F38 && c.cycles > 10000000)
-//	if(c.PC == 0xff87 && c.cycles > 14000000)
-//		is_debugged = 0;
-#endif
-	if(is_debugged)
-	{
-		cpu_print_debug();
-	}
 
 	switch(b)
 	{
@@ -2440,8 +2429,8 @@ int cpu_cycle(void)
 			c.cycles += 4;
 		break;
 		default:
-			printf("Unhandled opcode %02X at %04X\n", b, c.PC);
-			printf("cycles: %d\n", c.cycles);
+			//printf("Unhandled opcode %02X at %04X\n", b, c.PC);
+			//printf("cycles: %d\n", c.cycles);
 			return 0;
 		break;
 	}
