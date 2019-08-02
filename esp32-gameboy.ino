@@ -11,7 +11,7 @@
 void setup() {
 	// put your setup code here, to run once:
 	sdl_init();
-	rom_init(gb_rom);
+	rom_init((const unsigned char*)gb_rom);
 	memm_init();
 	cpu_init();
 
