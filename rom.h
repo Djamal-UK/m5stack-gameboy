@@ -1,14 +1,21 @@
 #ifndef ROM_H
 #define ROM_H
-#ifdef __cplusplus
 
-extern "C" {
+#include <stdint.h>
 
-#endif
+struct s_rominfo {
+	uint16_t rom_banks;
+	uint8_t ram_banks;
+	uint8_t rom_mapper;
+	uint8_t has_battery;
+	uint8_t has_rtc;
+};
+
 int rom_load(const char *);
 int rom_init(const unsigned char *);
 const unsigned char *rom_getbytes(void);
-unsigned int rom_get_mapper(void);
+const s_rominfo *rom_get_info(void);
+unsigned int rom_get_ram_size();
 
 enum {
 	NROM,
@@ -19,9 +26,5 @@ enum {
 	MBC4,
 	MBC5,
 };
-#ifdef __cplusplus
 
-  }
-
-#endif /* end of __cplusplus */
 #endif

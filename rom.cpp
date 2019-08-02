@@ -1,76 +1,28 @@
-
 #include <stdio.h>
 #include <string.h>
 #include "rom.h"
 
 const unsigned char *bytes;
-unsigned int mapper;
 
-extern "C"{
+static s_rominfo rominfo;
 
-static char *carts[] = {
-  /*
-	[0x00] = "ROM ONLY",
-	[0x01] = "MBC1",
-	[0x02] = "MBC1+RAM",
-	[0x03] = "MBC1+RAM+BATTERY",
-	[0x05] = "MBC2",
-	[0x06] = "MBC2+BATTERY",
-	[0x08] = "ROM+RAM",
-	[0x09] = "ROM+RAM+BATTERY",
-	[0x0B] = "MMM01",
-	[0x0C] = "MMM01+RAM",
-	[0x0D] = "MMM01+RAM+BATTERY",
-	[0x0F] = "MBC3+TIMER+BATTERY",
-	[0x10] = "MBC3+TIMER+RAM+BATTERY",
-	[0x11] = "MBC3",
-	[0x12] = "MBC3+RAM",
-	[0x13] = "MBC3+RAM+BATTERY",
-	[0x19] = "MBC5",
-	[0x1A] = "MBC5+RAM",
-	[0x1B] = "MBC5+RAM+BATTERY",
-	[0x1C] = "MBC5+RUMBLE",
-	[0x1D] = "MBC5+RUMBLE+RAM",
-	[0x1E] = "MBC5+RUMBLE+RAM+BATTERY",
-	[0xFC] = "POCKET CAMERA",
-	[0xFD] = "BANDAI TAMA5",
-	[0xFE] = "HuC3",
-	[0xFF] = "HuC1+RAM+BATTERY",
-  */
-};
-
-}
-
-
-static char *banks[] = {
-	" 32KiB",
-	" 64KiB",
-	"128KiB",
-	"256KiB",
-	"512KiB",
-	"  1MiB",
-	"  2MiB",
-	"  4MiB",
+static uint16_t banks[256] = {
+	2, 4, 8, 16, 32, 64, 128, 256, 512,
 	/* 0x52 */
-	"1.1MiB",
-	"1.2MiB",
-	"1.5MiB",
-	"Unknown"
+	72, 80, 96,
+	0
 };
 
-static char *rams[] = {
-	"None",
-	"  2KiB",
-	"  8KiB",
-	" 32KiB",
-	"Unknown"
+static uint8_t rams[256] = {
+	0, 1, 1, 4, 16, 8,
+	0
 };
 
-static char *regions[] = {
-	"Japan",
-	"Non-Japan",
-	"Unknown"
-};
+// static char *regions[] = {
+	// "Japan",
+	// "Non-Japan",
+	// "Unknown"
+// };
 
 static unsigned char header[] = {
 	0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B,
@@ -83,142 +35,93 @@ static unsigned char header[] = {
 
 int rom_init(const unsigned char *rombytes)
 {
-	char buf[17];
-	int type, bank_index, ram, region, version, i, pass;
+	int i, pass;
 	unsigned char checksum = 0;
 
+	/* Check Nintendo logo on ROM header */
 	if(memcmp(&rombytes[0x104], header, sizeof(header)) != 0)
 		return 0;
 
-	memcpy(buf, &rombytes[0x134], 16);
-	buf[16] = '\0';
-	printf("Rom title: %s\n", buf);
-
-	type = rombytes[0x147];
-
-	//printf("Cartridge type: %s (%02X)\n", carts[type], type);
-
-	bank_index = rombytes[0x148];
-	/* Adjust for the gap in the bank indicies */
-	if(bank_index >= 0x52 && bank_index <= 0x54)
-		bank_index -= 74;
-	else if(bank_index > 7)
-		bank_index = 11;
-
-	printf("Rom size: %s\n", banks[bank_index]);
-
-	ram = rombytes[0x149];
-	if(ram > 3)
-		ram = 4;
-
-	printf("RAM size: %s\n", rams[ram]);
-
-	region = rombytes[0x14A];
-	if(region > 2)
-		region = 2;
-	printf("Region: %s\n", regions[region]);
-
-	version = rombytes[0x14C];
-	printf("Version: %02X\n", version);
+	uint8_t cart_type  = rombytes[0x147];
+	rominfo.rom_banks  = rombytes[0x148]>=0x52 ? banks[rombytes[0x148] - 0x52] : banks[rombytes[0x148]];
+	rominfo.ram_banks  = rams[rombytes[0x149]];
+	//rominfo.region    = rombytes[0x14A];
+	//rominfo.version   = rombytes[0x14C];
 
 	for(i = 0x134; i <= 0x14C; i++)
 		checksum = checksum - rombytes[i] - 1;
 
 	pass = rombytes[0x14D] == checksum;
-
-	printf("Checksum: %s (%02X)\n", pass ? "OK" : "FAIL", checksum);
 	if(!pass)
 		return 0;
 
 	bytes = rombytes;
 
-	switch(type)
+	switch(cart_type)
 	{
-		case 0x00:
-		case 0x08:
 		case 0x09:
-			mapper = NROM;
+			rominfo.has_battery = true;
+		case 0x08:
+		case 0x00:
+			rominfo.rom_mapper = NROM;
 			break;
-		case 0x01:
-		case 0x02:
 		case 0x03:
-			mapper = MBC1;
+			rominfo.has_battery = true;
+		case 0x02:
+		case 0x01:
+			rominfo.rom_mapper = MBC1;
 			break;
-		case 0x05:
 		case 0x06:
-			mapper = MBC2;
+			rominfo.has_battery = true;
+		case 0x05:
+			rominfo.rom_mapper = MBC2;
 			break;
-		case 0x0B:
+		case 0x0D:
+			rominfo.has_battery = true;
 		case 0x0C:
-			mapper = MMM01;
+		case 0x0B:
+			rominfo.rom_mapper = MMM01;
 			break;
-		case 0x0F:
 		case 0x10:
-		case 0x11:
-		case 0x12:
+		case 0x0F:
+			rominfo.has_rtc = true;
 		case 0x13:
-			mapper = MBC3;
+			rominfo.has_battery = true;
+		case 0x12:
+		case 0x11:
+			rominfo.rom_mapper = MBC3;
 			break;
-		case 0x19:
-		case 0x1A:
-		case 0x1B:
-		case 0x1C:
-		case 0x1D:
 		case 0x1E:
-			mapper = MBC5;
+		case 0x1B:
+			rominfo.has_battery = true;
+		case 0x1D:
+		case 0x1C:
+		case 0x1A:
+		case 0x19:
+			rominfo.rom_mapper = MBC5;
 			break;
 	}
 
 	return 1;
 }
 
-unsigned int rom_get_mapper(void)
+const s_rominfo *rom_get_info(void)
 {
-	return mapper;
+	return &rominfo;
+}
+
+unsigned int rom_get_ram_size()
+{
+	if (rominfo.rom_mapper == MBC2)
+		return 512;
+	return rominfo.ram_banks * 1024 * 8;
 }
 
 int rom_load(const char *filename)
 {
-  /*
-#ifdef _WIN32
-	HANDLE f, map;
-#else
-	int f;
-	size_t length;
-	struct stat st;
-#endif
-	unsigned char *bytes;
-
-#ifdef _WIN32
-	f = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
-		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-	if(f == INVALID_HANDLE_VALUE)
-		return 0;
-
-	map = CreateFileMapping(f, NULL, PAGE_READONLY, 0, 0, NULL);
-	if(!map)
-		return 0;
-
-	bytes = MapViewOfFile(map, FILE_MAP_READ, 0, 0, 0);
-	if(!bytes)
-		return 0;
-#else
-	f = open(filename, O_RDONLY);
-	if(f == -1)
-		return 0;
-	if(fstat(f, &st) == -1)
-		return 0;
-
-	bytes = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, f, 0);
-	if(!bytes)
-		return 0;
-#endif
-*/
-
-	//return rom_init(bytes);
-  return 0;
+	return 0;
 }
+
 const unsigned char *rom_getbytes(void)
 {
 	return bytes;

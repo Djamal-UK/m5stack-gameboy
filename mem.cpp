@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include "mem.h"
 #include "rom.h"
 #include "lcd.h"
@@ -9,19 +10,29 @@
 #include "sdl.h"
 #include "cpu.h"
 
-
 static unsigned char *mem = nullptr;
 static int DMA_pending = 0;
 static int joypad_select_buttons, joypad_select_directions;
 static const unsigned char *rom = nullptr;
 static const unsigned char *rombank = nullptr;
-static unsigned int cur_bank = 1;
+static unsigned char *ram = nullptr;
+static unsigned char *rambank = nullptr;
+static bool ram_enabled = false;
+static const s_rominfo *rominfo = nullptr;
 
 void mem_bank_switch(unsigned int n)
 { 
 	rombank = &rom[n * 0x4000];
-	//memcpy(&mem[0x4000], &b[n * 0x4000], 0x4000);
-	//cur_bank = n;
+}
+
+void mem_bank_switch_ram(unsigned int n)
+{
+	rambank = &ram[n * 0x2000];
+}
+
+void mem_enable_ram(bool state)
+{
+	ram_enabled = state;
 }
 
 /* LCD's access to VRAM */
@@ -38,6 +49,12 @@ unsigned char* mem_get_bytes()
 	return mem;
 }
 
+unsigned char* mem_get_ram()
+{
+	return ram;
+}
+
+// TODO: get rid of excessive function calls
 unsigned char mem_get_byte(unsigned short i)
 {
 	unsigned long elapsed;
@@ -56,6 +73,9 @@ unsigned char mem_get_byte(unsigned short i)
 
 	if(i >= 0x4000 && i < 0x8000)
 		return rombank[i - 0x4000];
+	
+	if (i >= 0xA000 && i < 0xC000)
+		return ram_enabled ? rambank[i - 0xA000] : 0xFF;
 
 	if(i < 0xFF00)
 		return mem[i];
@@ -101,32 +121,11 @@ unsigned char mem_get_byte(unsigned short i)
 	return mem[i];
 }
 
-unsigned short mem_get_word(unsigned short i)
-{
-	unsigned long elapsed;
-
-	if(DMA_pending && i < 0xFF80)
-	{
-		elapsed = cpu_get_cycles() - DMA_pending;
-		if(elapsed >= 160)
-			DMA_pending = 0;
-		else
-		{
-			return mem[0xFE00+elapsed];
-		}
-	}
-	
-	if(i >= 0x4000 && i < 0x8000)
-		return rombank[i - 0x4000] | (rombank[(i+1) - 0x4000]<<8);
-	
-	return mem[i] | (mem[i+1]<<8);
-}
-
 void mem_write_byte(unsigned short d, unsigned char i)
 {
 	unsigned int filtered = 0;
 
-	switch(rom_get_mapper())
+	switch(rominfo->rom_mapper)
 	{
 		case NROM:
 			if(d < 0x8000)
@@ -143,6 +142,12 @@ void mem_write_byte(unsigned short d, unsigned char i)
 
 	if(filtered)
 		return;
+	
+	if (d >= 0xA000 && d < 0xC000) {
+		if (!ram_enabled)
+			return;
+		rambank[d - 0xA000] = i;
+	}
 
 	switch(d)
 	{
@@ -151,7 +156,7 @@ void mem_write_byte(unsigned short d, unsigned char i)
 			joypad_select_directions = i&0x10;
 		break;
 		case 0xFF01: /* Link port data */
-//			fprintf(stderr, "%c", i);
+			//Serial.print(i);
 		break;
 		case 0xFF04:
 			timer_set_div(i);
@@ -210,21 +215,21 @@ void mem_write_byte(unsigned short d, unsigned char i)
 	mem[d] = i;
 }
 
-void mem_write_word(unsigned short d, unsigned short i)
-{
-	mem[d] = i&0xFF;
-	mem[d+1] = i>>8;
-}
-
 void memm_init(void)
 {
 	rom = rom_getbytes();
-
+	rominfo = rom_get_info();
+	
+	int ram_size = rom_get_ram_size();
+	ram = (unsigned char *)calloc(1, ram_size < 1024*8 ? 1024*8 : ram_size);
+	
 	mem = (unsigned char *)calloc(1, 0x10000);
-
+	
 	memcpy(&mem[0x0000], &rom[0x0000], 0x4000);
 	memcpy(&mem[0x4000], &rom[0x4000], 0x4000);
+	
 	mem_bank_switch(1);
+	mem_bank_switch_ram(0);
 
 	mem[0xFF10] = 0x80;
 	mem[0xFF11] = 0xBF;
