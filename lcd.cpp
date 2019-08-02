@@ -10,31 +10,38 @@
 #include "mem.h"
 
 
-static int lcd_line;
-static int lcd_ly_compare;
+static byte lcd_line;
+static byte lcd_ly_compare;
 
 static QueueHandle_t lcdqueue;
 
 
 /* LCD STAT */
-static int ly_int;	/* LYC = LY coincidence interrupt enable */
-static int mode2_oam_int;
-static int mode1_vblank_int;
-static int mode0_hblank_int;
-static int ly_int_flag;
-static int lcd_mode;
+static byte ly_int;	/* LYC = LY coincidence interrupt enable */
+static byte mode2_oam_int;
+static byte mode1_vblank_int;
+static byte mode0_hblank_int;
+static byte ly_int_flag;
+static byte lcd_mode;
+static byte lcd_stat;
+static byte lcd_stat_tracker;
 
 /* LCD Control */
-static int lcd_enabled;
-static int window_tilemap_select;
-static int window_enabled;
-static int tilemap_select;
-static int bg_tiledata_select;
-static int sprite_size;
-static int sprites_enabled;
-static int bg_enabled;
-static int scroll_x, scroll_y;
-static int window_x, window_y;
+struct cLCD {
+	byte lcd_enabled;
+	byte lcd_line;
+	byte window_tilemap_select;
+	byte window_enabled;
+	byte tilemap_select;
+	byte bg_tiledata_select;
+	byte sprite_size;
+	byte sprites_enabled;
+	byte bg_enabled;
+	byte scroll_x, scroll_y;
+	byte window_x, window_y;
+};
+
+static cLCD lcdc;
 
 static byte bgpalette[] = {3, 2, 1, 0};
 static byte sprpalette1[] = {0, 1, 2, 3};
@@ -53,8 +60,8 @@ enum {
 
 unsigned char lcd_get_stat(void)
 {
-
-	return (ly_int)<<6 | lcd_mode;
+	//return (ly_int)<<6 | lcd_mode;
+	return lcd_stat | (ly_int_flag<<2) | lcd_mode;
 }
 
 void lcd_write_bg_palette(unsigned char n)
@@ -83,12 +90,12 @@ void lcd_write_spr_palette2(unsigned char n)
 
 void lcd_write_scroll_x(unsigned char n)
 {
-	scroll_x = n;
+	lcdc.scroll_x = n;
 }
 
 void lcd_write_scroll_y(unsigned char n)
 {
-	scroll_y = n;
+	lcdc.scroll_y = n;
 }
 
 int lcd_get_line(void)
@@ -98,24 +105,30 @@ int lcd_get_line(void)
 
 void lcd_write_stat(unsigned char c)
 {
-	ly_int = !!(c&0x40);
+	ly_int                = !!(c & 0x40);
+	mode2_oam_int         = !!(c & 0x20);
+	mode1_vblank_int      = !!(c & 0x10);
+	mode0_hblank_int      = !!(c & 0x08);
+	
+	lcd_stat = (c & 0xF8);
 }
 
 void lcd_write_control(unsigned char c)
 {
-	bg_enabled            = !!(c & 0x01);
-	sprites_enabled       = !!(c & 0x02);
-	sprite_size           = !!(c & 0x04);
-	tilemap_select        = !!(c & 0x08);
-	bg_tiledata_select    = !!(c & 0x10);
-	window_enabled        = !!(c & 0x20);
-	window_tilemap_select = !!(c & 0x40);
-	lcd_enabled           = !!(c & 0x80);
+	lcdc.bg_enabled            = !!(c & 0x01);
+	lcdc.sprites_enabled       = !!(c & 0x02);
+	lcdc.sprite_size           = !!(c & 0x04);
+	lcdc.tilemap_select        = !!(c & 0x08);
+	lcdc.bg_tiledata_select    = !!(c & 0x10);
+	lcdc.window_enabled        = !!(c & 0x20);
+	lcdc.window_tilemap_select = !!(c & 0x40);
+	lcdc.lcd_enabled           = !!(c & 0x80);
 	
-	if(!lcd_enabled)
+	if(!lcdc.lcd_enabled)
 	{
 		xQueueReset(lcdqueue);
 		sdl_clear_framebuffer(0x00);
+		lcd_stat_tracker = 0;
 		//sdl_frame();
 	}
 }
@@ -126,11 +139,11 @@ void lcd_set_ly_compare(unsigned char c)
 }
 
 void lcd_set_window_y(unsigned char n) {
-	window_y = n;
+	lcdc.window_y = n;
 }
 
 void lcd_set_window_x(unsigned char n) {
-	window_x = n;
+	lcdc.window_x = n;
 }
 
 static void swap(struct sprite *a, struct sprite *b)
@@ -167,7 +180,7 @@ static void sort_sprites(struct sprite *s, int n)
 //  b[offset >> 2] |= (idx << ((offset & 3) << 1));
 //}
 
-static void draw_bg_and_window(byte *b, int line)
+static void draw_bg_and_window(byte *b, int line, struct cLCD& lcdc)
 {
 	int x, offset;
 	offset = line * 160;
@@ -179,14 +192,14 @@ static void draw_bg_and_window(byte *b, int line)
 		unsigned char b1, b2, mask, colour;
 
 		/* Convert LCD x,y into full 256*256 style internal coords */
-		if(line >= window_y && window_enabled && line - window_y < 144)
+		if(line >= lcdc.window_y && lcdc.window_enabled && line - lcdc.window_y < 144)
 		{
 			xm = x;
-			ym = line - window_y;
-			map_select = window_tilemap_select;
+			ym = line - lcdc.window_y;
+			map_select = lcdc.window_tilemap_select;
 		}
 		else {
-			if(!bg_enabled)
+			if(!lcdc.bg_enabled)
 			{
 				//b[line*640 + x] = 0;
 				//drawColorIndexToFrameBuffer(x,line,0,b);
@@ -194,9 +207,9 @@ static void draw_bg_and_window(byte *b, int line)
 				b[offset] = 0;
 				return;
 			}
-			xm = (x + scroll_x)&0xFF;
-			ym = (line + scroll_y)&0xFF;
-			map_select = tilemap_select;
+			xm = (x + lcdc.scroll_x)&0xFF;
+			ym = (line + lcdc.scroll_y)&0xFF;
+			map_select = lcdc.tilemap_select;
 		}
 
 		/* Which pixel is this tile on? Find its offset. */
@@ -208,7 +221,7 @@ static void draw_bg_and_window(byte *b, int line)
 		map_offset = (ym/8)*32 + xm/8;
 
 		tile_num = mem[0x9800 + map_select*0x400 + map_offset];
-		if(bg_tiledata_select)
+		if(lcdc.bg_tiledata_select)
 			tile_addr = 0x8000 + tile_num*16;
 		else
 			tile_addr = 0x9000 + ((signed char)tile_num)*16;
@@ -226,7 +239,7 @@ static void draw_bg_and_window(byte *b, int line)
 	}
 }
 
-static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s)
+static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s, struct cLCD& lcdc)
 {
 	int i;
 	unsigned char* mem = mem_get_bytes();
@@ -240,7 +253,7 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s)
 			continue;
 
 		/* Which line of the sprite (0-7) are we rendering */
-		sprite_line = s[i].flags & VFLIP ? (sprite_size ? 15 : 7)-(line - s[i].y) : line - s[i].y;
+		sprite_line = s[i].flags & VFLIP ? (lcdc.sprite_size ? 15 : 7)-(line - s[i].y) : line - s[i].y;
 
 		/* Address of the tile data for this sprite line */
 		tile_addr = 0x8000 + (s[i].tile*16) + sprite_line*2;
@@ -285,13 +298,15 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s)
 
 static void render_line(void *arg)
 {
-	int line = 0;
+	struct cLCD cline;
 	while(true) {
-		if (!xQueueReceive(lcdqueue, &line, portMAX_DELAY))
+		if (!xQueueReceive(lcdqueue, &cline, portMAX_DELAY))
 			continue;
 
-		if (!lcd_enabled || lcd_mode==1)
+		if (!lcdc.lcd_enabled || lcd_mode==1)
 			continue;
+		
+		int line = cline.lcd_line;
 
 	//    if (line == 144) {
 	//      sdl_render_framebuffer();
@@ -309,7 +324,7 @@ static void render_line(void *arg)
 			int y, offs = i * 4;
 		
 			y = mem[0xFE00 + offs++] - 16;
-			if(line < y || line >= y + 8+(sprite_size*8))
+			if(line < y || line >= y + 8+(cline.sprite_size*8))
 				continue;
 		
 			s[c].y     = y;
@@ -326,9 +341,9 @@ static void render_line(void *arg)
 			sort_sprites(s, c);
 		
 		/* Draw the background layer */
-		draw_bg_and_window(b, line);
+		draw_bg_and_window(b, line, cline);
 		
-		draw_sprites(b, line, c, s);
+		draw_sprites(b, line, c, s, cline);
 
 		if (line == 143) {
 			sdl_render_framebuffer();
@@ -345,8 +360,9 @@ void lcd_cycle()
   
 	this_frame = cycles % (70224/4);
 	lcd_line = this_frame / (456/4);
+	lcdc.lcd_line = lcd_line;
 	
-	if(!lcd_enabled)
+	if(!lcdc.lcd_enabled)
 		return;
   
 	if(this_frame < 204/4)
@@ -359,16 +375,17 @@ void lcd_cycle()
 		lcd_mode = 1;
 		
 	if(lcd_line != prev_line && lcd_line < 144)
-		xQueueSend(lcdqueue, &lcd_line, 0);
+		xQueueSend(lcdqueue, &lcdc, 0);
 		//render_line(lcd_line);
   
-	if(ly_int && lcd_line == lcd_ly_compare)
+	ly_int_flag = (lcd_line == lcd_ly_compare);
+	if(ly_int && ly_int_flag)
 		interrupt(INTR_LCDSTAT);
   
 	if(prev_line == 143 && lcd_line == 144)
 	{
 		//draw_stuff();
-    //xQueueSend(lcdqueue, &lcd_line, 0);
+		//xQueueSend(lcdqueue, &lcd_line, 0);
 		interrupt(INTR_VBLANK);
 		//sdl_frame();
 	}
@@ -383,6 +400,6 @@ void lcd_cycle()
 
 void lcd_thread_setup()
 {
-	lcdqueue = xQueueCreate(143, sizeof(int));
+	lcdqueue = xQueueCreate(143, sizeof(cLCD));
 	xTaskCreatePinnedToCore(&render_line, "renderScanline", 4096, NULL, 5, NULL, 0);
 }
