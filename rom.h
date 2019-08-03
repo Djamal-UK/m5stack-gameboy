@@ -16,6 +16,7 @@ int rom_init(const unsigned char *);
 const unsigned char *rom_getbytes(void);
 const s_rominfo *rom_get_info(void);
 unsigned int rom_get_ram_size();
+const char* rom_get_title();
 
 enum {
 	NROM,

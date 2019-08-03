@@ -346,7 +346,7 @@ static void render_line(void *arg)
 		draw_sprites(b, line, c, s, cline);
 
 		if (line == 143) {
-			sdl_render_framebuffer();
+			sdl_end_frame();
 		}
 	}
 }

@@ -5,6 +5,7 @@
 const unsigned char *bytes;
 
 static s_rominfo rominfo;
+static char romtitle[20] = "";
 
 static uint16_t banks[256] = {
 	2, 4, 8, 16, 32, 64, 128, 256, 512,
@@ -41,6 +42,8 @@ int rom_init(const unsigned char *rombytes)
 	/* Check Nintendo logo on ROM header */
 	if(memcmp(&rombytes[0x104], header, sizeof(header)) != 0)
 		return 0;
+	
+	memcpy(romtitle, &rombytes[0x134], 0x143-0x134);
 
 	uint8_t cart_type  = rombytes[0x147];
 	rominfo.rom_banks  = rombytes[0x148]>=0x52 ? banks[rombytes[0x148] - 0x52] : banks[rombytes[0x148]];
@@ -115,6 +118,11 @@ unsigned int rom_get_ram_size()
 	if (rominfo.rom_mapper == MBC2)
 		return 512;
 	return rominfo.ram_banks * 1024 * 8;
+}
+
+const char* rom_get_title()
+{
+	return romtitle;
 }
 
 int rom_load(const char *filename)

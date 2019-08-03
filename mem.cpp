@@ -147,6 +147,7 @@ void mem_write_byte(unsigned short d, unsigned char i)
 		if (!ram_enabled)
 			return;
 		rambank[d - 0xA000] = i;
+		//sram_modified = true;
 	}
 
 	switch(d)
@@ -222,6 +223,9 @@ void memm_init(void)
 	
 	int ram_size = rom_get_ram_size();
 	ram = (unsigned char *)calloc(1, ram_size < 1024*8 ? 1024*8 : ram_size);
+	
+	if (rominfo->has_battery && ram_size)
+		sdl_load_sram(ram, ram_size);
 	
 	mem = (unsigned char *)calloc(1, 0x10000);
 	
