@@ -9,12 +9,10 @@
 #include "sdl.h"
 #include "mem.h"
 
-
 static byte lcd_line;
 static byte lcd_ly_compare;
 
 static QueueHandle_t lcdqueue;
-
 
 /* LCD STAT */
 static byte ly_int;	/* LYC = LY coincidence interrupt enable */
@@ -42,6 +40,8 @@ struct cLCD {
 };
 
 static cLCD lcdc;
+
+static unsigned char* mem = nullptr;
 
 static byte bgpalette[] = {3, 2, 1, 0};
 static byte sprpalette1[] = {0, 1, 2, 3};
@@ -127,7 +127,7 @@ void lcd_write_control(unsigned char c)
 	if(!lcdc.lcd_enabled)
 	{
 		xQueueReset(lcdqueue);
-		sdl_clear_framebuffer(0x00);
+		sdl_clear_framebuffer(palette[0x00]);
 		lcd_stat_tracker = 0;
 		//sdl_frame();
 	}
@@ -174,17 +174,11 @@ static void sort_sprites(struct sprite *s, int n)
 	while(swapped);
 }
 
-//void drawColorIndexToFrameBuffer(int x, int y, byte idx, byte *b) {
-//  int offset = x + y * 160;
-//  b[offset >> 2] &= ~(0x3 << ((offset & 3) << 1));
-//  b[offset >> 2] |= (idx << ((offset & 3) << 1));
-//}
-
-static void draw_bg_and_window(byte *b, int line, struct cLCD& lcdc)
+static void draw_bg_and_window(fbuffer_t *b, int line, struct cLCD& lcdc)
 {
 	int x, offset;
 	offset = line * 160;
-	unsigned char* mem = mem_get_bytes();
+	//unsigned char* mem = mem_get_bytes();
 
 	for(x = 0; x < 160; x++)
 	{
@@ -201,10 +195,8 @@ static void draw_bg_and_window(byte *b, int line, struct cLCD& lcdc)
 		else {
 			if(!lcdc.bg_enabled)
 			{
-				//b[line*640 + x] = 0;
-				//drawColorIndexToFrameBuffer(x,line,0,b);
-				//b[offset >> 2] &= ~(0x3 << ((offset & 3) << 1));
-				b[offset] = 0;
+				//b[offset] = 0;
+				b[offset] = palette[0];
 				return;
 			}
 			xm = (x + lcdc.scroll_x)&0xFF;
@@ -230,19 +222,17 @@ static void draw_bg_and_window(byte *b, int line, struct cLCD& lcdc)
 		b2 = mem[tile_addr+(ym&7)*2+1];
 		mask = 128>>(xm&7);
 		colour = (!!(b2&mask)<<1) | !!(b1&mask);
-		//b[line*640 + x] = colours[bgpalette[colour]];
-		//drawColorIndexToFrameBuffer(x,line,bgpalette[colour],b);
-		b[offset] = bgpalette[colour];
-		//b[offset >> 2] &= ~(0x3 << ((offset & 3) << 1));
-		//b[offset >> 2] |= (bgpalette[colour] << ((offset & 3) << 1));
+		
+		//b[offset] = bgpalette[colour];
+		b[offset] = palette[bgpalette[colour]];
 		++offset;
 	}
 }
 
-static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s, struct cLCD& lcdc)
+static void draw_sprites(fbuffer_t *b, int line, int nsprites, struct sprite *s, struct cLCD& lcdc)
 {
 	int i;
-	unsigned char* mem = mem_get_bytes();
+	//unsigned char* mem = mem_get_bytes();
 
 	for(i = 0; i < nsprites; i++)
 	{
@@ -282,16 +272,12 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s, stru
 			/* Sprite is behind BG, only render over palette entry 0 */
 			if(s[i].flags & PRIO)
 			{
-				//unsigned int temp = b[line*640+(x + s[i].x)];
-				//byte temp = (b[offset >> 2] >> ((offset & 3) << 1)) & 3;
-				if(b[offset] != bgpalette[0])
+				if(b[offset] != palette[bgpalette[0]])
 					continue;
 			}
-			//b[line*640+(x + s[i].x)] = colours[pal[colour]];
-			//drawColorIndexToFrameBuffer(x + s[i].x,line,pal[colour],b);
-			b[offset] = pal[colour];
-			//b[offset >> 2] &= ~(0x3 << ((offset & 3) << 1));
-			//b[offset >> 2] |= (pal[colour] << ((offset & 3) << 1));
+			
+			//b[offset] = pal[colour];
+			b[offset] = palette[pal[colour]];
 		}
 	}
 }
@@ -299,6 +285,9 @@ static void draw_sprites(byte *b, int line, int nsprites, struct sprite *s, stru
 static void render_line(void *arg)
 {
 	struct cLCD cline;
+	fbuffer_t* b = sdl_get_framebuffer();
+	//unsigned char* mem = mem_get_bytes();
+	
 	while(true) {
 		if (!xQueueReceive(lcdqueue, &cline, portMAX_DELAY))
 			continue;
@@ -307,17 +296,8 @@ static void render_line(void *arg)
 			continue;
 		
 		int line = cline.lcd_line;
-
-	//    if (line == 144) {
-	//      sdl_render_framebuffer();
-	//      continue;
-	//    }
-		
 		int i, c = 0;
-		
 		struct sprite s[10];
-		byte *b = sdl_get_framebuffer();
-		unsigned char* mem = mem_get_bytes();
 		
 		for(i = 0; i<40; i++)
 		{
@@ -384,7 +364,6 @@ void lcd_cycle()
   
 	if(prev_line == 143 && lcd_line == 144)
 	{
-		//draw_stuff();
 		//xQueueSend(lcdqueue, &lcd_line, 0);
 		interrupt(INTR_VBLANK);
 		//sdl_frame();
@@ -392,14 +371,9 @@ void lcd_cycle()
 	prev_line = lcd_line;
 }
 
-//void lcd_cycle()
-//{
-//  int cycles = cpu_get_cycles();
-//  xQueueSend(lcdqueue, &cycles, 0);
-//}
-
 void lcd_thread_setup()
 {
+	mem = mem_get_bytes();
 	lcdqueue = xQueueCreate(143, sizeof(cLCD));
 	xTaskCreatePinnedToCore(&render_line, "renderScanline", 4096, NULL, 5, NULL, 0);
 }

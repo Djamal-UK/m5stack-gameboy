@@ -6,14 +6,17 @@
 extern volatile int spi_lock;
 extern volatile bool sram_modified;
 
+typedef uint16_t fbuffer_t;
+extern uint16_t palette[];
+
 void sdl_update(void);
 void sdl_init(void);
 void sdl_frame(void);
 void sdl_quit(void);
-byte* sdl_get_framebuffer(void);
-void sdl_clear_framebuffer(byte col);
-void sdl_clear_screen(byte col);
+fbuffer_t* sdl_get_framebuffer(void);
+void sdl_clear_framebuffer(fbuffer_t col);
 void sdl_end_frame(void);
+void sdl_clear_screen(uint16_t col);
 unsigned int sdl_get_buttons(void);
 unsigned int sdl_get_directions(void);
 uint16_t* sdl_get_palette(void);

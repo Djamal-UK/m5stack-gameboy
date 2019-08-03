@@ -7,6 +7,7 @@
 #include "spi_lcd.h"
 #include "i2c_keyboard.h"
 #include "sdl.h"
+#include "mem.h"
 
 #define JOYPAD_INPUT 5
 #define JOYPAD_ADDR  0x88
@@ -15,27 +16,26 @@
 
 #define GAMEBOY_WIDTH 160
 #define GAMEBOY_HEIGHT 144
-//byte pixels[GAMEBOY_HEIGHT * GAMEBOY_WIDTH / 4];
-static byte* pixels = NULL;
+
+static fbuffer_t* pixels = NULL;
 
 static uint8_t btn_directions, btn_faces;
 volatile int spi_lock = 0;
 volatile bool sram_modified = false;
 
-uint16_t palette[] = { 0xFFFF, 0xAAAA, 0x5555, 0x2222 };
+//uint16_t palette[] = { 0xFFFF, 0xAAAA, 0x5555, 0x2222 };
 
-QueueHandle_t fbqueue;
+// QueueHandle_t fbqueue;
 
-static void videoTask(void *arg) {
-	byte* fb = NULL;
-	int x = (320 - GAMEBOY_WIDTH)  >> 1;
-	int y = (240 - GAMEBOY_HEIGHT) >> 1;
-	while(true) {
-		xQueueReceive(fbqueue, &fb, portMAX_DELAY);
-		ili9341_write_frame(x, y, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, fb, true);
-	}
-}
-
+// static void videoTask(void *arg) {
+	// fbuffer_t* fb = NULL;
+	// int x = (320 - GAMEBOY_WIDTH)  >> 1;
+	// int y = (240 - GAMEBOY_HEIGHT) >> 1;
+	// while(true) {
+		// xQueueReceive(fbqueue, &fb, portMAX_DELAY);
+		// ili9341_write_frame(x, y, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, fb, true);
+	// }
+// }
 
 byte getColorIndexFromFrameBuffer(int x, int y)
 {
@@ -51,21 +51,28 @@ static void sdl_queue_sd_write()
 void sdl_init(void)
 {
 	// LCDEnable, SDEnable, SerialEnable, I2CEnable
-	//M5.begin(false, true, true, true);
+	M5.begin(true, true, false, false);
 	//M5.Speaker.end();
 	//Serial.begin(115200);
 	//SD.begin(TFCARD_CS_PIN, SPI, 40000000);
 	//dacWrite(SPEAKER_PIN, 0);
+	
+	/* Stops the speaker from having a damn stroke */
 	ledcDetachPin(SPEAKER_PIN);
+	
 	pinMode(JOYPAD_INPUT, INPUT_PULLUP);
 	pinMode(BUTTON_A_PIN, INPUT_PULLUP);
 	attachInterrupt(BUTTON_A_PIN, sdl_queue_sd_write, FALLING);
+	
 	i2c_keyboard_master_init();
-	pixels = (byte*)calloc(GAMEBOY_HEIGHT, GAMEBOY_WIDTH);
+	
+	pixels = (fbuffer_t*)calloc(GAMEBOY_HEIGHT * GAMEBOY_WIDTH, sizeof(fbuffer_t));
+	
 	const unsigned int pal[] = {0xEFFFDE, 0xADD794, 0x525F73, 0x183442}; // Default greenscale palette
 	sdl_set_palette(pal);
-	ili9341_init();
-	fbqueue = xQueueCreate(1, sizeof(byte*));
+	
+	//ili9341_init();
+	//fbqueue = xQueueCreate(1, sizeof(fbuffer_t*));
 	//xTaskCreatePinnedToCore(&videoTask, "videoTask", 2048, NULL, 5, NULL, 1);
 }
 
@@ -76,7 +83,6 @@ void sdl_update(void)
 		btn_faces = (btns >> 4);
 		btn_directions = (BIT(btns, 1) << 3) | (BIT(btns, 0) << 2) | (BIT(btns, 2) << 1) | (BIT(btns, 3));
 	}
-	return 0;
 }
 
 unsigned int sdl_get_buttons(void)
@@ -89,19 +95,19 @@ unsigned int sdl_get_directions(void)
 	return btn_directions;
 }
 
-byte* sdl_get_framebuffer(void)
+fbuffer_t* sdl_get_framebuffer(void)
 {
 	return pixels;
 }
 
-void sdl_clear_framebuffer(byte col)
+void sdl_clear_framebuffer(fbuffer_t col)
 {
 	memset(pixels, col, sizeof(pixels));
 }
 
-void sdl_clear_screen(byte col)
+void sdl_clear_screen(uint16_t col)
 {
-	//M5.Lcd.fillScreen(palette[col]);
+	//M5.Lcd.fillScreen(col);
 	//M5.Lcd.clear();
 }
 
@@ -123,13 +129,13 @@ void sdl_set_palette(const unsigned int* col)
 
 void sdl_end_frame(void)
 {
-	ili9341_write_frame(x, y, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, pixels, true);
 	if (spi_lock) {
 		const s_rominfo* rominfo = rom_get_info();
 		if (rominfo->has_battery && rom_get_ram_size())
 			sdl_save_sram();
 		spi_lock = 0;
 	}
+	M5.Lcd.drawBitmap(CENTER_X, CENTER_Y, GAMEBOY_WIDTH, GAMEBOY_HEIGHT, pixels);
 }
 
 void sdl_frame(void)
