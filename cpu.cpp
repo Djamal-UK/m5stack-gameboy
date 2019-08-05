@@ -707,10 +707,6 @@ unsigned int cpu_cycle(void)
 	}
 	
 	interrupt_flush();
-	// if(interrupt_flush())
-	// {
-		// halted = 0;
-	// }
 
 	b = mem_get_byte(c.PC);
 	if (halt_bug) {
@@ -2082,7 +2078,8 @@ unsigned int cpu_cycle(void)
 			c.PC = mem_get_word(c.SP);
 			c.SP += 2;
 			c.cycles += 4;
-			interrupt_enable();
+			IME = 1;
+			//interrupt_enable();
 		break;
 		case 0xDE:	/* SBC A, imm8 */
 			t = mem_get_byte(c.PC++);

@@ -109,7 +109,7 @@ unsigned char mem_get_byte(unsigned short i)
 			return timer_get_tac();
 		break;
 		case 0xFF0F:
-			return IF; //interrupt_get_IF();
+			return 0xE0 | IF; //interrupt_get_IF();
 		break;
 		case 0xFF41:
 			return lcd_get_stat();
@@ -226,7 +226,7 @@ void mem_write_byte(unsigned short d, unsigned char i)
 		case 0xFF50:
 			memcpy(&mem[0x0000], &rom[0x0000], 0x100); break;
 		case 0xFFFF:
-			IF = i; //interrupt_set_mask(i);
+			IE = i; //interrupt_set_mask(i);
 		break;
 	}
 	
