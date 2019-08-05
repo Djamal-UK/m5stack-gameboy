@@ -9,24 +9,34 @@
 #include "sdl.h"
 #include "mem.h"
 
+#define MODE2_BOUNDS 	(204/4)
+#define MODE3_BOUNDS 	(284/4)
+#define MODE0_BOUNDS 	(456/4)
+#define SCANLINE_CYCLES	(456/4)
+
+#define SET_MODE(mode) (lcd_stat = (lcd_stat & 0xFC) | (mode))
+
+static unsigned char* mem = nullptr;
+
 static byte lcd_line;
-static byte lcd_ly_compare;
+static byte lcd_stat;
+static byte lcd_ly_compare = 0;
+static uint32_t lcd_cycles = 0;
 
 static QueueHandle_t lcdqueue;
 
 /* LCD STAT */
-static byte ly_int;	/* LYC = LY coincidence interrupt enable */
+static byte ly_int;
 static byte mode2_oam_int;
 static byte mode1_vblank_int;
 static byte mode0_hblank_int;
 static byte ly_int_flag;
 static byte lcd_mode;
-static byte lcd_stat;
 static byte lcd_stat_tracker;
 
 /* LCD Control */
 struct cLCD {
-	byte lcd_enabled;
+	byte lcd_enabled = 1;
 	byte lcd_line;
 	byte window_tilemap_select;
 	byte window_enabled;
@@ -35,21 +45,27 @@ struct cLCD {
 	byte sprite_size;
 	byte sprites_enabled;
 	byte bg_enabled;
-	byte scroll_x, scroll_y;
-	byte window_x, window_y;
+	byte bg_palette;
+	byte spr_palette1;
+	byte spr_palette2;
+	byte scroll_x = 0;
+	byte scroll_y = 0;
+	byte window_x = 0;
+	byte window_y = 0;
 };
 
 static cLCD lcdc;
 
-static unsigned char* mem = nullptr;
+struct sprite {
+	int y, x, tile, flags;
+};
+
+static sprite spr[10];
+static int sprcount;
 
 static byte bgpalette[] = {3, 2, 1, 0};
 static byte sprpalette1[] = {0, 1, 2, 3};
 static byte sprpalette2[] = {0, 1, 2, 3};
-
-struct sprite {
-	int y, x, tile, flags;
-};
 
 enum {
 	PRIO  = 0x80,
@@ -60,32 +76,41 @@ enum {
 
 unsigned char lcd_get_stat(void)
 {
-	//return (ly_int)<<6 | lcd_mode;
 	return lcd_stat | (ly_int_flag<<2) | lcd_mode;
 }
 
-void lcd_write_bg_palette(unsigned char n)
+static inline void lcd_set_palettes(const cLCD& lcdc)
 {
+	byte n = lcdc.bg_palette;
 	bgpalette[0] = (n>>0)&3;
 	bgpalette[1] = (n>>2)&3;
 	bgpalette[2] = (n>>4)&3;
 	bgpalette[3] = (n>>6)&3;
+	n = lcdc.spr_palette1;
+	//sprpalette1[0] = 0;
+	sprpalette1[1] = (n>>2)&3;
+	sprpalette1[2] = (n>>4)&3;
+	sprpalette1[3] = (n>>6)&3;
+	n = lcdc.spr_palette2;
+	//sprpalette2[0] = 0;
+	sprpalette2[1] = (n>>2)&3;
+	sprpalette2[2] = (n>>4)&3;
+	sprpalette2[3] = (n>>6)&3;
+}
+
+void lcd_write_bg_palette(unsigned char n)
+{
+	lcdc.bg_palette = n;
 }
 
 void lcd_write_spr_palette1(unsigned char n)
 {
-	sprpalette1[0] = 0;
-	sprpalette1[1] = (n>>2)&3;
-	sprpalette1[2] = (n>>4)&3;
-	sprpalette1[3] = (n>>6)&3;
+	lcdc.spr_palette1 = n;
 }
 
 void lcd_write_spr_palette2(unsigned char n)
 {
-	sprpalette2[0] = 0;
-	sprpalette2[1] = (n>>2)&3;
-	sprpalette2[2] = (n>>4)&3;
-	sprpalette2[3] = (n>>6)&3;
+	lcdc.spr_palette2 = n;
 }
 
 void lcd_write_scroll_x(unsigned char n)
@@ -128,8 +153,9 @@ void lcd_write_control(unsigned char c)
 	{
 		xQueueReset(lcdqueue);
 		sdl_clear_framebuffer(palette[0x00]);
-		lcd_stat_tracker = 0;
-		//sdl_frame();
+		lcd_mode = 1;
+		lcd_line = 0;
+		lcd_cycles = 0;
 	}
 }
 
@@ -146,16 +172,7 @@ void lcd_set_window_x(unsigned char n) {
 	lcdc.window_x = n;
 }
 
-static void swap(struct sprite *a, struct sprite *b)
-{
-	struct sprite c;
-
-	 c = *a;
-	*a = *b;
-	*b =  c;
-}
-
-static void sort_sprites(struct sprite *s, int n)
+static inline void sort_sprites(struct sprite *s, int n)
 {
 	int swapped, i;
 
@@ -166,12 +183,37 @@ static void sort_sprites(struct sprite *s, int n)
 		{
 			if(s[i].x < s[i+1].x)
 			{
-				swap(&s[i], &s[i+1]);
+				sprite c = s[i];
+				s[i] = s[i+1];
+				s[i+1] = c;
 				swapped = 1;
 			}
 		}
 	}
 	while(swapped);
+}
+
+static inline int scan_sprites(struct sprite *s, int line, int size)
+{
+	int i, c = 0;
+	for(i = 0; i<40; i++)
+	{
+		int y, offs = i * 4;
+	
+		y = mem[0xFE00 + offs++] - 16;
+		if(line < y || line >= y + 8+(size*8))
+			continue;
+	
+		s[c].y     = y;
+		s[c].x     = mem[0xFE00 + offs++]-8;
+		s[c].tile  = mem[0xFE00 + offs++];
+		s[c].flags = mem[0xFE00 + offs++];
+		c++;
+	
+		if(c == 10)
+			break;
+	}
+	return c;
 }
 
 static void draw_bg_and_window(fbuffer_t *b, int line, struct cLCD& lcdc)
@@ -291,38 +333,22 @@ static void render_line(void *arg)
 	while(true) {
 		if (!xQueueReceive(lcdqueue, &cline, portMAX_DELAY))
 			continue;
-
+		
 		if (!lcdc.lcd_enabled || lcd_mode==1)
 			continue;
 		
 		int line = cline.lcd_line;
-		int i, c = 0;
 		struct sprite s[10];
 		
-		for(i = 0; i<40; i++)
-		{
-			int y, offs = i * 4;
+		lcd_set_palettes(cline);
 		
-			y = mem[0xFE00 + offs++] - 16;
-			if(line < y || line >= y + 8+(cline.sprite_size*8))
-				continue;
-		
-			s[c].y     = y;
-			s[c].x     = mem[0xFE00 + offs++]-8;
-			s[c].tile  = mem[0xFE00 + offs++];
-			s[c].flags = mem[0xFE00 + offs++];
-			c++;
-		
-			if(c == 10)
-				break;
-		}
-		
-		if(c)
-			sort_sprites(s, c);
+		int c = scan_sprites(s, line, cline.sprite_size);
+		if(c) sort_sprites(s, c);
 		
 		/* Draw the background layer */
 		draw_bg_and_window(b, line, cline);
 		
+		/* Draw sprites */
 		draw_sprites(b, line, c, s, cline);
 
 		if (line == 143) {
@@ -331,49 +357,97 @@ static void render_line(void *arg)
 	}
 }
 
-// TODO: proper lcd timing
-void lcd_cycle()
-{   
-	int cycles = cpu_get_cycles();
-	int this_frame, subframe_cycles;
+void lcd_cycle(unsigned int cycles)
+{
 	static int prev_line;
-  
-	this_frame = cycles % (70224/4);
-	lcd_line = this_frame / (456/4);
-	lcdc.lcd_line = lcd_line;
 	
 	if(!lcdc.lcd_enabled)
 		return;
+	
+	lcd_cycles += cycles;
   
-	if(this_frame < 204/4)
-		lcd_mode = 2;
-	else if(this_frame < 284/4)
-		lcd_mode = 3;
-	else if(this_frame < 456/4)
-		lcd_mode = 0;
-	if(lcd_line >= 144)
-		lcd_mode = 1;
-		
-	if(lcd_line != prev_line && lcd_line < 144)
-		xQueueSend(lcdqueue, &lcdc, 0);
-		//render_line(lcd_line);
-  
-	ly_int_flag = (lcd_line == lcd_ly_compare);
-	if(ly_int && ly_int_flag)
-		interrupt(INTR_LCDSTAT);
-  
-	if(prev_line == 143 && lcd_line == 144)
-	{
-		//xQueueSend(lcdqueue, &lcd_line, 0);
-		interrupt(INTR_VBLANK);
-		//sdl_frame();
+	if(lcd_line >= 144) {
+		if (lcd_mode != 1) {
+			/* Mode 1: Vertical blanking */
+			if (mode1_vblank_int) {
+				interrupt(INTR_LCDSTAT);
+			}
+			interrupt(INTR_VBLANK);
+			lcd_stat_tracker = 0;
+			lcd_mode = 1;
+			
+			//sdl_end_frame();
+			//sdl_frame();
+		}
+		if (lcd_cycles >= SCANLINE_CYCLES) {
+			//lcd_cycles -= SCANLINE_CYCLES;
+			lcd_cycles = 0;
+			++lcd_line;
+			if (lcd_line > 153) {
+				lcd_line = 0;
+			}
+		}
 	}
+	else if(lcd_cycles < MODE2_BOUNDS) {
+		if (lcd_mode != 2) {
+			if (mode2_oam_int) {
+				interrupt(INTR_LCDSTAT);
+			}
+			lcd_stat_tracker = 1;
+			lcd_mode = 2;
+			
+			/* Mode 2: Scanning OAM for (X, Y) coordinates of sprites that overlap this line */
+			// sprcount = scan_sprites(spr, lcd_line, lcdc.sprite_size);
+			// if (sprcount) sort_sprites(spr, sprcount);
+		}
+	}
+	else if(lcd_cycles < MODE3_BOUNDS) {
+		if (lcd_mode != 3) {
+			lcd_stat_tracker = 1;
+			lcd_mode = 3;
+			
+			// send scanline early
+			lcdc.lcd_line = lcd_line;
+			xQueueSend(lcdqueue, &lcdc, 0);
+			
+			/* Mode 3: Reading OAM and VRAM to generate the picture */
+			// fbuffer_t* b = sdl_get_framebuffer();
+			// lcd_set_palettes(lcdc);
+			// draw_bg_and_window(b, lcd_line, lcdc);
+			// draw_sprites(b, lcd_line, sprcount, spr, lcdc);
+		}
+	}
+	else if(lcd_cycles < MODE0_BOUNDS) {
+		if (lcd_mode != 0) {
+			/* Mode 0: Horizontal blanking */
+			if (mode0_hblank_int) {
+				interrupt(INTR_LCDSTAT);
+			}
+			lcd_stat_tracker = 3;
+			lcd_mode = 0;
+		}
+	}
+	else {
+		//lcdc.lcd_line = lcd_line++;
+		//xQueueSend(lcdqueue, &lcdc, 0);
+		++lcd_line;
+		lcd_mode = 0;
+		//lcd_cycles -= SCANLINE_CYCLES;
+		lcd_cycles = 0;
+	}
+	
+	ly_int_flag = (lcd_line == lcd_ly_compare);
+	if(ly_int && ly_int_flag) {
+		interrupt(INTR_LCDSTAT);
+	}
+	
 	prev_line = lcd_line;
 }
 
-void lcd_thread_setup()
+void lcd_init()
 {
 	mem = mem_get_bytes();
 	lcdqueue = xQueueCreate(143, sizeof(cLCD));
+	lcd_write_control(mem[0xFF40]);
 	xTaskCreatePinnedToCore(&render_line, "renderScanline", 4096, NULL, 5, NULL, 0);
 }

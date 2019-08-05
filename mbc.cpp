@@ -28,7 +28,7 @@ unsigned int MBC3_write_byte(unsigned short d, unsigned char i)
 		if(curr_rom_bank == 0)
 			curr_rom_bank++;
 
-		mem_bank_switch(curr_rom_bank);
+		mem_bank_switch_rom(curr_rom_bank);
 
 		return FILTER_WRITE;
 	}
@@ -73,7 +73,7 @@ unsigned int MBC1_write_byte(unsigned short d, unsigned char i)
 		if(curr_rom_bank == 0 || curr_rom_bank == 0x20 || curr_rom_bank == 0x40 || curr_rom_bank == 0x60)
 			curr_rom_bank++;
 
-		mem_bank_switch(curr_rom_bank);
+		mem_bank_switch_rom(curr_rom_bank);
 
 		return FILTER_WRITE;
 	}
@@ -88,7 +88,7 @@ unsigned int MBC1_write_byte(unsigned short d, unsigned char i)
 		else {
 			bank_upper_bits = (i & 0x3)<<5;
 			curr_rom_bank = bank_upper_bits | (curr_rom_bank & 0x1F);
-			mem_bank_switch(curr_rom_bank);
+			mem_bank_switch_rom(curr_rom_bank);
 		}
 		return FILTER_WRITE;
 	}
@@ -98,7 +98,7 @@ unsigned int MBC1_write_byte(unsigned short d, unsigned char i)
 		ram_select = i&1;
 		if (ram_select) {
 			curr_rom_bank &= 0x1F;
-			mem_bank_switch(curr_rom_bank);
+			mem_bank_switch_rom(curr_rom_bank);
 		}
 		else {
 			curr_ram_bank = 0;

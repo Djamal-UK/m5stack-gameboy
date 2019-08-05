@@ -9,6 +9,7 @@
 #include "timer.h"
 #include "sdl.h"
 #include "cpu.h"
+#include "gbbios.h"
 
 static unsigned char *mem = nullptr;
 static int DMA_pending = 0;
@@ -17,11 +18,11 @@ static const unsigned char *rom = nullptr;
 static const unsigned char *rombank = nullptr;
 static unsigned char *ram = nullptr;
 static unsigned char *rambank = nullptr;
-static bool ram_enabled = false;
+static bool ram_enabled = false; // TODO: move to mbc.cpp
 static const s_rominfo *rominfo = nullptr;
 
-void mem_bank_switch(unsigned int n)
-{ 
+void mem_bank_switch_rom(unsigned int n)
+{
 	rombank = &rom[n * 0x4000];
 }
 
@@ -74,13 +75,19 @@ unsigned char mem_get_byte(unsigned short i)
 	if(i >= 0x4000 && i < 0x8000)
 		return rombank[i - 0x4000];
 	
-	if (i >= 0xA000 && i < 0xC000)
+	// else if (i >= 0x8000 && i < 0xA000)
+		// return ((mem[0xFF41]&0x3)==3) ? 0xFF : mem[i];
+	
+	else if (i >= 0xA000 && i < 0xC000)
 		return ram_enabled ? rambank[i - 0xA000] : 0xFF;
+	
+	// else if (i >= 0xFE00 && i < 0xFE9F)
+		// return ((mem[0xFF41]&0x2)==1) ? 0xFF : mem[i];
 
-	if(i < 0xFF00)
-		return mem[i];
+	// else if(i < 0xFF00)
+		// return mem[i];
 
-	switch(i)
+	else switch(i)
 	{
 		case 0xFF00:	/* Joypad */
 			if(!joypad_select_buttons)
@@ -102,7 +109,7 @@ unsigned char mem_get_byte(unsigned short i)
 			return timer_get_tac();
 		break;
 		case 0xFF0F:
-			return interrupt_get_IF();
+			return IF; //interrupt_get_IF();
 		break;
 		case 0xFF41:
 			return lcd_get_stat();
@@ -114,7 +121,7 @@ unsigned char mem_get_byte(unsigned short i)
 			return 0xFF;
 		break;
 		case 0xFFFF:
-			return interrupt_get_mask();
+			return IE; //interrupt_get_IE();
 		break;
 	}
 
@@ -143,14 +150,21 @@ void mem_write_byte(unsigned short d, unsigned char i)
 	if(filtered)
 		return;
 	
-	if (d >= 0xA000 && d < 0xC000) {
+	/* VRAM */
+	// if (d >= 0x8000 && d < 0xA000) {
+		// if ((mem[0xFF41] & 0x3) == 3)
+			// return;
+	// }
+	
+	/* SRAM */
+	else if (d >= 0xA000 && d < 0xC000) {
 		if (!ram_enabled)
 			return;
 		rambank[d - 0xA000] = i;
 		//sram_modified = true;
 	}
 
-	switch(d)
+	else switch(d)
 	{
 		case 0xFF00:	/* Joypad */
 			joypad_select_buttons = i&0x20;
@@ -172,7 +186,7 @@ void mem_write_byte(unsigned short d, unsigned char i)
 			timer_set_tac(i);
 		break;
 		case 0xFF0F:
-			interrupt_set_IF(i);
+			IF = i; //interrupt_set_IF(i);
 		break;
 		case 0xFF40:
 			lcd_write_control(i);
@@ -186,6 +200,8 @@ void mem_write_byte(unsigned short d, unsigned char i)
 		case 0xFF43:
 			lcd_write_scroll_x(i);
 		break;
+		case 0xFF44:
+			i = 0; break;
 		case 0xFF45:
 			lcd_set_ly_compare(i);
 		break;
@@ -207,20 +223,22 @@ void mem_write_byte(unsigned short d, unsigned char i)
 			lcd_set_window_y(i); break;
 		case 0xFF4B:
 			lcd_set_window_x(i); break;
+		case 0xFF50:
+			memcpy(&mem[0x0000], &rom[0x0000], 0x100); break;
 		case 0xFFFF:
-			interrupt_set_mask(i);
-			return;
+			IF = i; //interrupt_set_mask(i);
 		break;
 	}
 	
 	mem[d] = i;
 }
 
-void memm_init(void)
+void mmu_init(bool bootrom)
 {
 	rom = rom_getbytes();
 	rominfo = rom_get_info();
 	
+	// TODO: init MBC from here
 	int ram_size = rom_get_ram_size();
 	ram = (unsigned char *)calloc(1, ram_size < 1024*8 ? 1024*8 : ram_size);
 	
@@ -229,11 +247,17 @@ void memm_init(void)
 	
 	mem = (unsigned char *)calloc(1, 0x10000);
 	
+	mem_bank_switch_rom(1);
+	mem_bank_switch_ram(0);
+	
+	if (bootrom) {
+		memcpy(&mem[0x0000], &gb_bios[0x0000], 0x100);
+		memcpy(&mem[0x0100], &rom[0x0100], 0x4000 - 0x100);
+		return;
+	}
+	
 	memcpy(&mem[0x0000], &rom[0x0000], 0x4000);
 	memcpy(&mem[0x4000], &rom[0x4000], 0x4000);
-	
-	mem_bank_switch(1);
-	mem_bank_switch_ram(0);
 
 	mem[0xFF10] = 0x80;
 	mem[0xFF11] = 0xBF;

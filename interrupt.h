@@ -1,14 +1,18 @@
 #ifndef INTERRUPT_H
 #define INTERRUPT_H
 
+extern unsigned char IME;
+extern unsigned char IF;
+extern unsigned char IE;
+
 void interrupt(unsigned int);
 void interrupt_disable(void);
 void interrupt_enable(void);
 unsigned char interrupt_get_IF(void);
 void interrupt_set_IF(unsigned char);
-unsigned char interrupt_get_mask(void);
+unsigned char interrupt_get_IE(void);
 void interrupt_set_mask(unsigned char);
-int interrupt_pending(void);
+int interrupt_get_IME(void);
 int interrupt_flush(void);
 
 enum {
