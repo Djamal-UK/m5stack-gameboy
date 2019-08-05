@@ -4,7 +4,6 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 
-#include "spi_lcd.h"
 #include "i2c_keyboard.h"
 #include "sdl.h"
 #include "mem.h"
@@ -23,7 +22,7 @@ static uint8_t btn_directions, btn_faces;
 volatile int spi_lock = 0;
 volatile bool sram_modified = false;
 
-//uint16_t palette[] = { 0xFFFF, 0xAAAA, 0x5555, 0x2222 };
+uint16_t palette[] = { 0xFFFF, 0xAAAA, 0x5555, 0x2222 };
 
 // QueueHandle_t fbqueue;
 
