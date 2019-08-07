@@ -6,7 +6,8 @@
 
 #include "i2c_keyboard.h"
 #include "sdl.h"
-#include "mem.h"
+#include "mbc.h"
+#include "rom.h"
 
 #define JOYPAD_INPUT 5
 #define JOYPAD_ADDR  0x88
@@ -150,7 +151,7 @@ void sdl_save_sram()
 	File sram = SD.open(path, FILE_WRITE);
 	if (sram) {
 		sram.seek(0);
-		sram.write(mem_get_ram(), rom_get_ram_size());
+		sram.write(mbc_get_ram(), rom_get_ram_size());
 		sram.close();
 	}
 }

@@ -1,5 +1,24 @@
 #ifndef MBC_H
 #define MBC_H
-unsigned int MBC1_write_byte(unsigned short, unsigned char);
-unsigned int MBC3_write_byte(unsigned short, unsigned char);
+
+typedef unsigned char(*MBCReader)(unsigned short);
+typedef void(*MBCWriter)(unsigned short, unsigned char);
+
+extern MBCReader mbc_read_ram;
+extern MBCWriter mbc_write_rom;
+extern MBCWriter mbc_write_ram;
+
+extern const unsigned char *rombank;
+
+void mbc_init();
+unsigned char* mbc_get_ram();
+
+void MBC1_write_ROM(unsigned short, unsigned char);
+void MBC1_write_RAM(unsigned short, unsigned char);
+unsigned char MBC1_read_RAM(unsigned short);
+
+void MBC3_write_ROM(unsigned short, unsigned char);
+void MBC3_write_RAM(unsigned short, unsigned char);
+unsigned char MBC3_read_RAM(unsigned short);
+
 #endif
