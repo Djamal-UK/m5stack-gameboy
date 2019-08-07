@@ -45,6 +45,7 @@ int interrupt_flush(void)
 			IME = 0;
 			IF &= ~(1 << i);
 			cpu_interrupt(0x40 + i*0x08);
+			break;
 		}
 	}
 
