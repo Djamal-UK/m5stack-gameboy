@@ -709,6 +709,7 @@ unsigned int cpu_cycle(void)
 	interrupt_flush();
 
 	b = mem_get_byte(c.PC);
+	
 	if (halt_bug) {
 		halt_bug = false;
 	} else {
@@ -801,6 +802,11 @@ unsigned int cpu_cycle(void)
 		case 0x0F:	/* RRCA */
 			RRC(7);
 			set_Z(0);
+			c.cycles += 1;
+		break;
+		case 0x10: /* STOP */
+			// TODO
+			c.PC++;
 			c.cycles += 1;
 		break;
 		case 0x11:	/* LD DE, imm16 */
@@ -1333,9 +1339,6 @@ unsigned int cpu_cycle(void)
 			c.cycles += 2;
 		break;
 		case 0x76: {	/* HALT */
-			//bool IME = interrupt_get_IME();
-			//unsigned char IF = interrupt_get_IF();
-			//unsigned char IE = interrupt_get_IE();
 			if (!IME && (IF & IE & 0x1F)) {
 				halt_bug = true;
 				c.cycles += 1;
@@ -2219,7 +2222,6 @@ unsigned int cpu_cycle(void)
 		break;
 		case 0xFB:	/* EI */
 			interrupt_enable();
-			//printf("Interrupts enabled, IE: %02x\n", interrupt_get_IE());
 			c.cycles += 1;
 		break;
 		case 0xFE:	/* CP a, imm8 */
