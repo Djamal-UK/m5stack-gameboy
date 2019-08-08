@@ -152,10 +152,23 @@ void mem_write_byte(unsigned short d, unsigned char i)
 		case 0xFF45:
 			lcd_set_ly_compare(i);
 		break;
-		case 0xFF46: /* OAM DMA */
-			/* Copy bytes from i*0x100 to OAM */
-			memcpy(&mem[0xFE00], &mem[i*0x100], 0xA0);
+		case 0xFF46: { /* OAM DMA */
+			/* Check if address overlaps with RAM or ROM */
+			unsigned short addr = i * 0x100;
+			const unsigned char* src = mem;
+			if (addr >= 0x4000 && addr < 0x8000) {
+				src = rombank;
+				addr -= 0x4000;
+			}
+			else if (addr >= 0xA000 && addr < 0xC000) {
+				src = rambank;
+				addr -= 0xA000;
+			}
+			
+			/* Copy 0xA0 bytes from source to OAM */
+			memcpy(&mem[0xFE00], &src[addr], 0xA0);
 			DMA_pending = cpu_get_cycles();
+		}
 		break;
 		case 0xFF47:
 			lcd_write_bg_palette(i);

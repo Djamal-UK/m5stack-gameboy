@@ -12,9 +12,9 @@ static unsigned char ram_banks;
 static bool ram_select;
 static bool ram_enabled;
 static const unsigned char *rom;
-const unsigned char *rombank;
 static unsigned char *ram;
-static unsigned char *rambank;
+const unsigned char *rombank;
+unsigned char *rambank;
 static const s_rominfo *rominfo;
 
 MBCReader mbc_read_rom;
@@ -27,6 +27,9 @@ void mbc_init()
 {
 	rom = rom_getbytes();
 	rominfo = rom_get_info();
+	
+	rom_banks = rominfo->rom_banks;
+	ram_banks = rominfo->ram_banks;
 	
 	int ram_size = rom_get_ram_size();
 	ram = (unsigned char *)calloc(1, ram_size < 1024*8 ? 1024*8 : ram_size);

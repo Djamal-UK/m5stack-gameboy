@@ -8,7 +8,8 @@ extern MBCReader mbc_read_ram;
 extern MBCWriter mbc_write_rom;
 extern MBCWriter mbc_write_ram;
 
-extern const unsigned char *rombank;
+extern const unsigned char* rombank;
+extern unsigned char* rambank;
 
 void mbc_init();
 unsigned char* mbc_get_ram();
