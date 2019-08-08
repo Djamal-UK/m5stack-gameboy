@@ -180,7 +180,7 @@ void lcd_set_window_y(unsigned char n) {
 }
 
 void lcd_set_window_x(unsigned char n) {
-	lcdc.window_x = n - 7;
+	lcdc.window_x = n;
 }
 
 static inline void sort_sprites(struct sprite *s, int n)
@@ -238,9 +238,9 @@ static void draw_bg_and_window(fbuffer_t *b, int line, struct cLCD& lcdc)
 		unsigned char b1, b2, mask, colour;
 
 		/* Convert LCD x,y into full 256*256 style internal coords */
-		if(windowVisible)
+		if(windowVisible && x + 7 >= lcdc.window_x)
 		{
-			xm = x;
+			xm = x + 7 - lcdc.window_x;
 			ym = line - lcdc.window_y;
 			map_select = lcdc.window_tilemap_select;
 		}
@@ -249,10 +249,10 @@ static void draw_bg_and_window(fbuffer_t *b, int line, struct cLCD& lcdc)
 			{
 				//b[offset] = 0;
 				b[offset] = palette[bgpalette[0]];
-				return;
+				continue;
 			}
-			xm = (x + lcdc.scroll_x)&0xFF;
-			ym = (line + lcdc.scroll_y)&0xFF;
+			xm = (x + lcdc.scroll_x) & 0xFF;
+			ym = (line + lcdc.scroll_y) & 0xFF;
 			map_select = lcdc.tilemap_select;
 		}
 
