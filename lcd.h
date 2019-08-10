@@ -2,6 +2,7 @@
 #define LCD_H
 void lcd_init(void);
 void lcd_cycle(unsigned int);
+void lcd_reset(void);
 int lcd_get_line(void);
 unsigned char lcd_get_stat();
 void lcd_write_control(unsigned char);

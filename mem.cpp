@@ -148,7 +148,8 @@ void mem_write_byte(unsigned short d, unsigned char i)
 			lcd_write_scroll_x(i);
 		break;
 		case 0xFF44:
-			i = 0; break;
+			lcd_reset();
+		break;
 		case 0xFF45:
 			lcd_set_ly_compare(i);
 		break;

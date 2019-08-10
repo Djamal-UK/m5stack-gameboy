@@ -82,6 +82,15 @@ static inline void lcd_match_lyc()
 	}
 }
 
+void lcd_reset(void)
+{
+	xQueueReset(lcdqueue);
+	espeon_clear_framebuffer(palette[0x00]);
+	lcd_mode = 1;
+	lcd_line = 0;
+	lcd_cycles = 0;
+}
+
 unsigned char lcd_get_stat(void)
 {
 	return lcd_stat | (ly_int_flag<<2) | lcd_mode;
@@ -155,15 +164,9 @@ void lcd_write_control(unsigned char c)
 	lcdc.window_tilemap_select = !!(c & 0x40);
 	lcdc.lcd_enabled           = !!(c & 0x80);
 	
-	if(!lcdc.lcd_enabled)
-	{
-		xQueueReset(lcdqueue);
-		sdl_clear_framebuffer(palette[0x00]);
-		lcd_mode = 1;
-		lcd_line = 0;
-		lcd_cycles = 0;
-	}
-	else {
+	if(!lcdc.lcd_enabled) {
+		lcd_reset();
+	} else {
 		lcd_match_lyc();
 	}
 }
