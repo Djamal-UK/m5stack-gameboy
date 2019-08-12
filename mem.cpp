@@ -76,7 +76,7 @@ unsigned char mem_get_byte(unsigned short i)
 			return timer_get_tac();
 		break;
 		case 0xFF0F:
-			return 0xE0 | IF; //interrupt_get_IF();
+			return 0xE0 | IF;
 		break;
 		case 0xFF41:
 			return lcd_get_stat();
@@ -88,7 +88,7 @@ unsigned char mem_get_byte(unsigned short i)
 			return 0xFF;
 		break;
 		case 0xFFFF:
-			return IE; //interrupt_get_IE();
+			return IE;
 		break;
 	}
 
@@ -181,11 +181,14 @@ void mem_write_byte(unsigned short d, unsigned char i)
 			lcd_write_spr_palette2(i);
 		break;
 		case 0xFF4A:
-			lcd_set_window_y(i); break;
+			lcd_set_window_y(i);
+		break;
 		case 0xFF4B:
-			lcd_set_window_x(i); break;
+			lcd_set_window_x(i);
+		break;
 		case 0xFF50:
-			memcpy(&mem[0x0000], &rom[0x0000], 0x100); break;
+			memcpy(&mem[0x0000], &rom[0x0000], 0x100);
+		break;
 		case 0xFFFF:
 			IE = i;
 		break;

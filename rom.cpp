@@ -7,19 +7,17 @@ const unsigned char *bytes;
 static s_rominfo rominfo;
 static char romtitle[20] = "";
 
-static uint16_t banks[256] = {
+static const uint16_t banks[256] = {
 	2, 4, 8, 16, 32, 64, 128, 256, 512,
 	/* 0x52 */
-	72, 80, 96,
-	0
+	72, 80, 96
 };
 
-static uint8_t rams[256] = {
-	0, 1, 1, 4, 16, 8,
-	0
+static const uint8_t rams[256] = {
+	0, 1, 1, 4, 16, 8
 };
 
-static unsigned char header[] = {
+static const unsigned char header[] = {
 	0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B,
 	0x03, 0x73, 0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D,
 	0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E,

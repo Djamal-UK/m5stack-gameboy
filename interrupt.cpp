@@ -2,28 +2,14 @@
 #include "cpu.h"
 
 unsigned char IME;
-static int pending;
-
-/* Pending interrupt flags */
-static unsigned int vblank;
-static unsigned int lcdstat;
-static unsigned int timer;
-static unsigned int serial;
-static unsigned int joypad;
 unsigned char IF;
-
-/* Interrupt masks */
-static unsigned int vblank_masked;
-static unsigned int lcdstat_masked;
-static unsigned int timer_masked;
-static unsigned int serial_masked;
-static unsigned int joypad_masked;
 unsigned char IE;
+
+static int pending;
 
 /* Returns true if the cpu should be unhalted */
 int interrupt_flush(void)
 {
-	/* Flush the highest priority interrupt and/or resume the cpu */
 	if(pending == 2)
 	{
 		pending--;
@@ -35,7 +21,6 @@ int interrupt_flush(void)
 		pending = 0;
 	}
 
-	/* There's a pending interrupt but interrupts are disabled, just resume the cpu */
 	if (!IME)
 		return !!(IF & IE);
 
@@ -73,29 +58,6 @@ void interrupt(unsigned int n)
 	 */
 	if(interrupt_flush())
 		halted = 0;
-}
-
-unsigned char interrupt_get_IF(void)
-{
-	return IF;
-}
-
-void interrupt_set_IF(unsigned char mask)
-{
-	IF = mask;
-
-	// if(IME && mask)
-		// pending = 1;
-}
-
-unsigned char interrupt_get_IE(void)
-{
-	return IE;
-}
-
-void interrupt_set_mask(unsigned char mask)
-{
-	IE = mask;
 }
 
 int interrupt_get_IME(void)
