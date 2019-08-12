@@ -1,6 +1,5 @@
 #ifndef CPU_H
 #define CPU_H
-#include "rom.h"
 
 extern int halted;
 
