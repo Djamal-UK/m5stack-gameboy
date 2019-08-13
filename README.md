@@ -2,6 +2,8 @@
 
 This is a port of https://github.com/zid/gameboy to the Espressif ESP32 chip.
 
+### This fork has been discontinued in favor of [Espeon](https://github.com/Ryuzaki-MrL/Espeon).
+
 # What do I need to use this?
 
 You will need:
